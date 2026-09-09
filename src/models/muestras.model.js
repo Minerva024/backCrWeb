@@ -33,27 +33,14 @@ muestras.ingresoproducto = async function (auxproducto, result) {
                 console.error("Error MySQL:", err);
                 return result(err, null);
             }
-
-            const usuarioCreacion = auxproducto.usuario_creacion || auxproducto.responsable || auxproducto.usuario || null;
-            if (usuarioCreacion) {
-                const queryUpd = "UPDATE mm_productocrm SET usuario_creacion = ?, fecha_creacion = NOW(), activo = 1 WHERE nombreproducto = ? ORDER BY idproductocrm DESC LIMIT 1";
-                dbConnMySQL.query(queryUpd, [usuarioCreacion, auxproducto.nombreproducto], function (errUpd, resUpd) {
-                    if (errUpd) {
-                        console.error("⚠️ Error actualizando usuario_creacion en mm_productocrm:", errUpd);
-                    }
-                    const json = JSON.parse(JSON.stringify(res));
-                    result(null, json);
-                });
-            } else {
-                const json = JSON.parse(JSON.stringify(res));
-                result(null, json);
-            }
+            const json = JSON.parse(JSON.stringify(res));
+            result(null, json);
         });
     } catch (error) {
         console.error("Error general:", error);
         result(error, null);
     }
-}
+};
 //Funcion para obtener el listado de los grupos de los productos de SAP.
 muestras.obtenergruposproductos = function (aux, result) {
     const query = `
@@ -256,7 +243,7 @@ function obtenerproductosCRM() {
             nombreproducto as "nombre",
             'CRM' as "origen"
              FROM mm_productocrm 
-             WHERE issap=false AND itemcodesap IS NULL AND (activo = 1 OR activo IS NULL);
+             WHERE issap=false AND itemcodesap IS NULL;
         `;
 
         dbConnMySQL.query(query, (err, res) => {
@@ -275,32 +262,7 @@ function listamuestrasubicacion(auxciudad) {
         dbConnMySQL.query(query, params, (err, res) => {
             if (err) return reject(err);
             let filas = JSON.parse(JSON.stringify(res[0]));
-            if (!Array.isArray(filas) || filas.length === 0) {
-                return resolve([]);
-            }
-
-            // Consultar el estado activo real directamente en la tabla mm_muestra
-            const ids = filas.map(f => f.idmm_muestra).filter(id => id != null);
-            if (ids.length === 0) return resolve(filas);
-
-            const queryActivos = "SELECT idmm_muestra, activo FROM mm_muestra WHERE idmm_muestra IN (?)";
-            dbConnMySQL.query(queryActivos, [ids], (errAct, resAct) => {
-                if (errAct) {
-                    console.error("❌ Error consultando activo en mm_muestra:", errAct);
-                    return resolve(filas);
-                }
-                const mapActivos = {};
-                resAct.forEach(r => {
-                    mapActivos[r.idmm_muestra] = r.activo;
-                });
-
-                // Filtrar excluyendo las que tienen activo == 0 (inactivas/anuladas)
-                const filasActivas = filas.filter(f => {
-                    const act = mapActivos[f.idmm_muestra];
-                    return act !== 0 && act !== '0';
-                });
-                resolve(filasActivas);
-            });
+            return resolve(filas || []);
         });
     });
 }
@@ -1891,27 +1853,80 @@ muestras.actualizarmuestra = function (idmuestra, aux, result) {
     }
 };
 
-// Función para eliminar directamente el ingreso de la muestra en mm_muestra y opcionalmente deshabilitar el producto en mm_productocrm
-// Función para anular / eliminar lógicamente una muestra y opcionalmente deshabilitar el producto CRM
+// Helper para registrar auditoría de eliminaciones catalogada por módulos
+function registrarAuditoriaEliminacion(datosAuditoria) {
+    return new Promise((resolve) => {
+        // Asegurar que la tabla auditoria_eliminaciones exista
+        const createTableQuery = `
+            CREATE TABLE IF NOT EXISTS auditoria_eliminaciones (
+                idauditoria INT AUTO_INCREMENT PRIMARY KEY,
+                modulo ENUM('MUESTRAS', 'RECLAMOS') NOT NULL COMMENT 'Módulo de origen',
+                tipo_registro ENUM('ELIMINACION_MUESTRA', 'ELIMINACION_PRODUCTO_CRM', 'INACTIVACION_PRODUCTO_CRM') NOT NULL,
+                id_referencia INT NOT NULL COMMENT 'ID del registro principal (idmm_muestra, idproductocrm)',
+                codigo_referencia VARCHAR(100) NULL COMMENT 'Código SAP (ItemCode) o Código CRM',
+                nombre_referencia VARCHAR(255) NULL COMMENT 'Nombre de la muestra o producto',
+                usuario VARCHAR(100) NOT NULL COMMENT 'Usuario que ejecutó la acción',
+                fecha_hora DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Fecha y hora exacta',
+                motivo TEXT NULL COMMENT 'Motivo u observación ingresada',
+                detalle JSON NULL COMMENT 'Snapshot con datos complementarios (proveedor, cantidad, ciudad, etc.)'
+            );
+        `;
+        dbConnMySQL.query(createTableQuery, (errTable) => {
+            if (errTable) {
+                console.error("⚠️ [AUDITORIA] Error verificando tabla auditoria_eliminaciones:", errTable);
+            }
+            const queryInsert = `
+                INSERT INTO auditoria_eliminaciones 
+                (modulo, tipo_registro, id_referencia, codigo_referencia, nombre_referencia, usuario, fecha_hora, motivo, detalle)
+                VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?)
+            `;
+            const params = [
+                datosAuditoria.modulo || 'MUESTRAS',
+                datosAuditoria.tipo_registro,
+                datosAuditoria.id_referencia,
+                datosAuditoria.codigo_referencia || null,
+                datosAuditoria.nombre_referencia || null,
+                datosAuditoria.usuario || 'desconocido',
+                datosAuditoria.motivo || null,
+                datosAuditoria.detalle ? (typeof datosAuditoria.detalle === 'string' ? datosAuditoria.detalle : JSON.stringify(datosAuditoria.detalle)) : null
+            ];
+            dbConnMySQL.query(queryInsert, params, (errInsert, resInsert) => {
+                if (errInsert) {
+                    console.error("⚠️ [AUDITORIA] Error registrando en auditoria_eliminaciones:", errInsert);
+                } else {
+                    console.log(`✅ [AUDITORIA] Registro guardado en auditoria_eliminaciones ID ${resInsert.insertId}: [${datosAuditoria.tipo_registro}]`);
+                }
+                resolve(true);
+            });
+        });
+    });
+}
+
+// Función para eliminar directamente el ingreso de la muestra en mm_muestra (si iscomplete = 0)
+// Regla 2: No afecta ni elimina al producto en CRM
 muestras.anularmuestra = function (datos, result) {
     try {
         const idmuestra = Number(datos.id || datos.idmuestra || datos.idmm_muestra);
-        const usuarioEliminacion = datos.usuario || datos.usuario_eliminacion || datos.responsable || null;
-        const motivoEliminacion = datos.motivo || datos.motivo_eliminacion || 'Eliminación desde Ubicar Muestra';
-        const deshabilitarProducto = datos.deshabilitarproducto || datos.deshabilitarProductoCRM || false;
+        const usuarioEliminacion = datos.usuario || datos.usuario_eliminacion || datos.responsable || 'desconocido';
+        const motivoEliminacion = (datos.motivo || datos.motivo_eliminacion || '').toString().trim();
 
-        console.log("➡️ [BACKEND] anularmuestra datos recibidos:", { idmuestra, usuarioEliminacion, motivoEliminacion, deshabilitarProducto });
+        console.log("➡️ [BACKEND] anularmuestra datos recibidos:", { idmuestra, usuarioEliminacion, motivoEliminacion });
 
         if (!idmuestra || isNaN(idmuestra)) {
             console.error("❌ [BACKEND] ID de muestra inválido:", datos);
             return result({ message: "ID de muestra no proporcionado o inválido" }, null);
         }
 
-        // 1. Validar que la muestra exista y verificar su origen (SAP vs CRM)
-        const queryCheck = "SELECT idmm_muestra, idproductocrm, idproductosap, nombrereferencial FROM mm_muestra WHERE idmm_muestra = ?";
-        dbConnMySQL.query(queryCheck, [idmuestra], function (errCheck, resCheck) {
+        if (!motivoEliminacion) {
+            console.warn("⚠️ [BACKEND] Motivo de eliminación de muestra no proporcionado");
+            return result(null, { respuesta: false, message: "El motivo de eliminación es obligatorio para anular la muestra." });
+        }
+
+        // 1. Validar que la muestra exista y verificar su estado y origen
+        const queryCheck = "SELECT * FROM mm_muestra WHERE idmm_muestra = ?";
+        dbConnMySQL.query(queryCheck, [idmuestra], async function (errCheck, resCheck) {
             if (errCheck) {
-                console.error("❌ [MYSQL] Error verificando origen de muestra:", errCheck);
+                console.error("❌ [MYSQL] Error verificando muestra:", errCheck);
                 return result(errCheck, null);
             }
 
@@ -1921,61 +1936,276 @@ muestras.anularmuestra = function (datos, result) {
             }
 
             const muestraData = resCheck[0];
-            const idproductocrm = muestraData.idproductocrm;
+            const isComplete = muestraData.iscomplete === 1 || muestraData.iscomplete === true || muestraData.iscomplete === '1';
 
-            // 2. Si se solicitó deshabilitar también el producto en el catálogo mm_productocrm (Nivel B, solo aplica si es producto CRM)
-            if (deshabilitarProducto && idproductocrm) {
-                const queryDeshabilitarProd = `
-                    UPDATE mm_productocrm
-                    SET activo = 0,
-                        usuario_eliminacion = ?,
-                        fecha_eliminacion = NOW()
-                    WHERE idproductocrm = ?
-                `;
-                dbConnMySQL.query(queryDeshabilitarProd, [usuarioEliminacion, idproductocrm], function (errProd, resProd) {
-                    if (errProd) {
-                        console.error("⚠️ [MYSQL] Error al deshabilitar producto en mm_productocrm:", errProd);
-                    } else {
-                        console.log(`⚡ [MYSQL] Producto CRM ID ${idproductocrm} deshabilitado (activo = 0)`);
-                    }
+            // Regla 2: Solo eliminar muestras en iscomplete = 0. Si iscomplete = 1, emitir alerta de restricción.
+            if (isComplete) {
+                console.warn(`⚠️ [MYSQL] Muestra ID ${idmuestra} tiene iscomplete = 1 (ya ubicada / enlazada a transacciones).`);
+                return result(null, {
+                    respuesta: false,
+                    message: "No se puede eliminar porque la muestra ya está enlazada a transacciones (ya fue ubicada)."
                 });
             }
 
-            // 3. Borrado lógico de la muestra en mm_muestra (Nivel A con auditoría)
-            const queryAnularMuestra = `
-                UPDATE mm_muestra
-                SET activo = 0,
-                    usuario_eliminacion = ?,
-                    fecha_eliminacion = NOW(),
-                    motivo_eliminacion = ?
-                WHERE idmm_muestra = ?
-            `;
-            console.log(`⚡ [MYSQL] Anulando lógicamente muestra ID ${idmuestra} por usuario: ${usuarioEliminacion}`);
-            dbConnMySQL.query(queryAnularMuestra, [usuarioEliminacion, motivoEliminacion, idmuestra], function (errDel, resDel) {
+            const idproductocrm = muestraData.idproductocrm;
+            const idproductosap = muestraData.idproductosap;
+            const nombreProducto = datos.producto || muestraData.nombrereferencial || 'Muestra sin nombre';
+            const codigoProducto = idproductosap || (idproductocrm ? `CRM-${idproductocrm}` : null);
+
+            // 2. Registrar auditoría de la eliminación de muestra en auditoria_eliminaciones
+            await registrarAuditoriaEliminacion({
+                modulo: 'MUESTRAS',
+                tipo_registro: 'ELIMINACION_MUESTRA',
+                id_referencia: idmuestra,
+                codigo_referencia: codigoProducto,
+                nombre_referencia: nombreProducto,
+                usuario: usuarioEliminacion,
+                motivo: motivoEliminacion,
+                detalle: {
+                    idmuestra: idmuestra,
+                    producto: nombreProducto,
+                    codigo: codigoProducto,
+                    cantidad: datos.cantidad || muestraData.cantidad || null,
+                    ciudad: datos.ciudad || muestraData.ciudad || null,
+                    proveedor: datos.proveedor || null,
+                    origen: idproductosap ? 'SAP' : 'CRM'
+                }
+            });
+
+            // 3. Regla 2: Eliminación directa de la muestra en mm_muestra (SIN tocar mm_productocrm)
+            const queryEliminarMuestra = "DELETE FROM mm_muestra WHERE idmm_muestra = ?";
+            console.log(`⚡ [MYSQL] Eliminando directamente muestra ID ${idmuestra} (iscomplete = 0)`);
+
+            dbConnMySQL.query(queryEliminarMuestra, [idmuestra], function (errDel, resDel) {
                 if (errDel) {
-                    console.error("❌ [MYSQL] Error al anular muestra:", errDel);
+                    console.error("❌ [MYSQL] Error al eliminar muestra de mm_muestra:", errDel);
                     return result(errDel, null);
                 }
 
-                console.log(`✅ [MYSQL] Resultado UPDATE mm_muestra:`, resDel);
+                console.log(`✅ [MYSQL] Resultado DELETE mm_muestra:`, resDel);
                 if (resDel.affectedRows === 0) {
                     return result(null, {
                         respuesta: false,
-                        message: "No se pudo actualizar la muestra en la base de datos (0 filas afectadas)."
+                        message: "No se encontró o no se pudo eliminar la muestra."
                     });
                 }
 
                 return result(null, {
                     respuesta: true,
-                    message: deshabilitarProducto
-                        ? "Muestra eliminada y producto de catálogo deshabilitado correctamente."
-                        : "Muestra eliminada correctamente.",
+                    message: "Ingreso de muestra eliminado correctamente. El catálogo de productos no ha sido afectado.",
                     affectedRows: resDel.affectedRows
                 });
             });
         });
     } catch (error) {
         console.error("Error en anularmuestra:", error);
+        result(error, null);
+    }
+};
+
+// Regla 1: Eliminar un producto de CRM siempre y cuando no esté referenciado en mm_muestra
+muestras.eliminarproductocrm = function (datos, result) {
+    try {
+        const idproductocrm = Number(datos.id || datos.idproductocrm);
+        const usuarioEliminacion = datos.usuario || datos.responsable || 'desconocido';
+        const motivoEliminacion = (datos.motivo || '').toString().trim();
+
+        console.log("➡️ [BACKEND] eliminarproductocrm datos recibidos:", { idproductocrm, usuarioEliminacion, motivoEliminacion });
+
+        if (!idproductocrm || isNaN(idproductocrm)) {
+            console.error("❌ [BACKEND] ID de producto CRM inválido:", datos);
+            return result({ message: "ID de producto CRM no proporcionado o inválido" }, null);
+        }
+
+        if (!motivoEliminacion) {
+            console.warn("⚠️ [BACKEND] Motivo de eliminación de producto CRM no proporcionado");
+            return result(null, { respuesta: false, message: "El motivo de eliminación es obligatorio para eliminar el producto." });
+        }
+
+        // 1. Validar que el producto no esté referenciado en mm_muestra (solicitada o ingresada para ubicación)
+        const queryCheckMuestra = "SELECT COUNT(*) AS total FROM mm_muestra WHERE idproductocrm = ?";
+        dbConnMySQL.query(queryCheckMuestra, [idproductocrm], function (errMuestra, resMuestra) {
+            if (errMuestra) {
+                console.error("❌ [MYSQL] Error verificando referencias en mm_muestra:", errMuestra);
+                return result(errMuestra, null);
+            }
+
+            const totalMuestras = resMuestra && resMuestra[0] ? resMuestra[0].total : 0;
+            if (totalMuestras > 0) {
+                console.warn(`⚠️ [MYSQL] No se puede eliminar producto CRM ${idproductocrm} porque tiene ${totalMuestras} muestras asociadas.`);
+                return result(null, {
+                    respuesta: false,
+                    message: `No se puede eliminar el producto porque tiene ${totalMuestras} muestra(s) solicitada(s) o ingresada(s) para ubicación.`
+                });
+            }
+
+            // 2. Obtener datos del producto para la auditoría
+            const queryGetProd = "SELECT nombreproducto FROM mm_productocrm WHERE idproductocrm = ?";
+            dbConnMySQL.query(queryGetProd, [idproductocrm], async function (errProd, resProd) {
+                if (errProd) {
+                    console.error("❌ [MYSQL] Error consultando producto CRM:", errProd);
+                    return result(errProd, null);
+                }
+
+                if (!resProd || resProd.length === 0) {
+                    return result(null, {
+                        respuesta: false,
+                        message: `No se encontró el producto CRM con ID ${idproductocrm}`
+                    });
+                }
+
+                const nombreProducto = resProd[0].nombreproducto;
+
+                // 3. Registrar auditoría en auditoria_eliminaciones
+                await registrarAuditoriaEliminacion({
+                    modulo: 'MUESTRAS',
+                    tipo_registro: 'ELIMINACION_PRODUCTO_CRM',
+                    id_referencia: idproductocrm,
+                    codigo_referencia: `CRM-${idproductocrm}`,
+                    nombre_referencia: nombreProducto,
+                    usuario: usuarioEliminacion,
+                    motivo: motivoEliminacion,
+                    detalle: {
+                        accion: 'ELIMINACION_DEFINITIVA_CATALOGO',
+                        total_muestras_asociadas: 0
+                    }
+                });
+
+                // 4. Eliminar directamente de mm_productocrm
+                const queryDeleteProd = "DELETE FROM mm_productocrm WHERE idproductocrm = ?";
+                dbConnMySQL.query(queryDeleteProd, [idproductocrm], function (errDel, resDel) {
+                    if (errDel) {
+                        console.error("❌ [MYSQL] Error al eliminar producto en mm_productocrm:", errDel);
+                        return result(errDel, null);
+                    }
+
+                    console.log(`✅ [MYSQL] Producto CRM ID ${idproductocrm} eliminado correctamente.`);
+                    return result(null, {
+                        respuesta: true,
+                        message: `Producto "${nombreProducto}" eliminado correctamente del catálogo CRM.`,
+                        affectedRows: resDel.affectedRows
+                    });
+                });
+            });
+        });
+    } catch (error) {
+        console.error("Error en eliminarproductocrm:", error);
+        result(error, null);
+    }
+};
+
+// Función para listar todos los productos creados en CRM con conteo de muestras vinculadas
+muestras.listarproductoscrmcompleto = function (result) {
+    try {
+        dbConnMySQL.query("SHOW COLUMNS FROM mm_productocrm", (errCols, resCols) => {
+            const columnas = (!errCols && resCols && Array.isArray(resCols))
+                ? resCols.map(c => c.Field.toLowerCase())
+                : [];
+
+            let campoCategoria = 'NULL AS idcategoriasap';
+            if (columnas.includes('idcategoriasap')) {
+                campoCategoria = 'p.idcategoriasap';
+            } else if (columnas.includes('idcategoria')) {
+                campoCategoria = 'p.idcategoria AS idcategoriasap';
+            } else if (columnas.includes('categoria')) {
+                campoCategoria = 'p.categoria AS idcategoriasap';
+            }
+
+            let whereClauses = [];
+            if (columnas.includes('issap')) {
+                whereClauses.push('(p.issap = false OR p.issap = 0 OR p.issap IS NULL)');
+            }
+            if (columnas.includes('itemcodesap')) {
+                whereClauses.push('(p.itemcodesap IS NULL OR p.itemcodesap = "")');
+            }
+            const whereSQL = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
+
+            const query = `
+                SELECT 
+                    p.idproductocrm,
+                    p.nombreproducto,
+                    ${campoCategoria},
+                    (SELECT COUNT(*) FROM mm_muestra m WHERE m.idproductocrm = p.idproductocrm) AS total_muestras
+                FROM mm_productocrm p
+                ${whereSQL}
+                ORDER BY p.idproductocrm DESC;
+            `;
+
+            dbConnMySQL.query(query, (err, res) => {
+                if (err) {
+                    console.error("❌ [MYSQL] Error en query principal listarproductoscrmcompleto:", err);
+                    // Fallback sin subquery por si mm_muestra tiene alguna inconsistencia
+                    const fallbackQuery = `
+                        SELECT 
+                            p.idproductocrm,
+                            p.nombreproducto,
+                            ${campoCategoria},
+                            0 AS total_muestras
+                        FROM mm_productocrm p
+                        ${whereSQL}
+                        ORDER BY p.idproductocrm DESC;
+                    `;
+                    return dbConnMySQL.query(fallbackQuery, (errFb, resFb) => {
+                        if (errFb) {
+                            console.error("❌ [MYSQL] Error en fallback query:", errFb);
+                            return result(errFb, null);
+                        }
+                        return result(null, JSON.parse(JSON.stringify(resFb)));
+                    });
+                }
+                return result(null, JSON.parse(JSON.stringify(res)));
+            });
+        });
+    } catch (error) {
+        console.error("Error en listarproductoscrmcompleto:", error);
+        result(error, null);
+    }
+};
+
+// Función para actualizar los datos de un producto CRM (nombre y categoría SAP)
+muestras.actualizarproductocrm = function (id, datos, result) {
+    try {
+        const idproductocrm = Number(id || datos.idproductocrm || datos.id);
+        const nombreproducto = (datos.nombreproducto || '').trim().toUpperCase();
+        const idcategoriasap = datos.idcategoriasap !== undefined ? datos.idcategoriasap : null;
+
+        if (!idproductocrm || !nombreproducto) {
+            return result({ message: "ID y nombre del producto son requeridos" }, null);
+        }
+
+        dbConnMySQL.query("SHOW COLUMNS FROM mm_productocrm", (errCols, resCols) => {
+            const columnas = (!errCols && resCols && Array.isArray(resCols))
+                ? resCols.map(c => c.Field.toLowerCase())
+                : [];
+
+            let query = "UPDATE mm_productocrm SET nombreproducto = ? WHERE idproductocrm = ?";
+            let params = [nombreproducto, idproductocrm];
+
+            if (columnas.includes('idcategoriasap')) {
+                query = "UPDATE mm_productocrm SET nombreproducto = ?, idcategoriasap = ? WHERE idproductocrm = ?";
+                params = [nombreproducto, idcategoriasap, idproductocrm];
+            } else if (columnas.includes('idcategoria')) {
+                query = "UPDATE mm_productocrm SET nombreproducto = ?, idcategoria = ? WHERE idproductocrm = ?";
+                params = [nombreproducto, idcategoriasap, idproductocrm];
+            }
+
+            dbConnMySQL.query(query, params, (err, res) => {
+                if (err) {
+                    console.error("❌ [MYSQL] Error al actualizar producto CRM:", err);
+                    return result(err, null);
+                }
+                if (res.affectedRows === 0) {
+                    return result(null, { respuesta: false, message: "No se encontró el producto a actualizar." });
+                }
+                return result(null, {
+                    respuesta: true,
+                    message: "Producto CRM actualizado correctamente.",
+                    affectedRows: res.affectedRows
+                });
+            });
+        });
+    } catch (error) {
+        console.error("Error en actualizarproductocrm:", error);
         result(error, null);
     }
 };

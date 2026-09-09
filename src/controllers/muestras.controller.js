@@ -857,3 +857,74 @@ exports.anularmuestra = function (req, res) {
         });
     }
 }
+
+// Controller para eliminar un producto de CRM según regla 1: solo si no pertenece a mm_muestra
+exports.eliminarproductocrm = function (req, res) {
+    try {
+        const id = req.params.id || req.body?.id || req.body?.idproductocrm;
+        const body = req.body || {};
+        body.idproductocrm = id;
+
+        if (!id) {
+            return res.status(400).json({
+                error: true,
+                message: "ID de producto CRM no proporcionado"
+            });
+        }
+
+        console.log("➡️ [BACKEND] Petición eliminarproductocrm recibida para ID:", id, body);
+        muestras.eliminarproductocrm(body, function (err, respuesta) {
+            if (err) {
+                console.error("❌ [BACKEND] Error al eliminar producto CRM:", err);
+                return res.status(500).json({
+                    error: true,
+                    message: "Error interno del servidor al eliminar el producto CRM"
+                });
+            }
+            return res.status(200).json({
+                error: false,
+                data: respuesta
+            });
+        });
+    } catch (error) {
+        console.error("❌ [BACKEND] Error inesperado en eliminarproductocrm:", error);
+        return res.status(500).json({
+            error: true,
+            message: "Error inesperado del servidor"
+        });
+    }
+};
+
+// Controller para listar productos CRM con conteo de muestras
+exports.listarproductoscrmcompleto = function (req, res) {
+    try {
+        muestras.listarproductoscrmcompleto(function (err, productos) {
+            if (err) {
+                console.error("❌ [BACKEND] Error en listarproductoscrmcompleto:", err);
+                return res.status(500).json({ error: true, message: err.sqlMessage || err.message || "Error al listar productos CRM" });
+            }
+            return res.status(200).json({ error: false, data: productos });
+        });
+    } catch (error) {
+        console.error("❌ [BACKEND] Error inesperado:", error);
+        return res.status(500).json({ error: true, message: error.message || "Error inesperado del servidor" });
+    }
+};
+
+// Controller para actualizar un producto CRM
+exports.actualizarproductocrm = function (req, res) {
+    try {
+        const id = req.params.id || req.body?.id || req.body?.idproductocrm;
+        const body = req.body || {};
+        muestras.actualizarproductocrm(id, body, function (err, respuesta) {
+            if (err) {
+                console.error("❌ [BACKEND] Error en actualizarproductocrm:", err);
+                return res.status(500).json({ error: true, message: err.sqlMessage || err.message || "Error al actualizar producto CRM" });
+            }
+            return res.status(200).json({ error: false, data: respuesta });
+        });
+    } catch (error) {
+        console.error("❌ [BACKEND] Error inesperado:", error);
+        return res.status(500).json({ error: true, message: error.message || "Error inesperado del servidor" });
+    }
+};

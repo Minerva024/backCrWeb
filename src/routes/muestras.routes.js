@@ -39,6 +39,12 @@ router.post('/actualizarmuestra', muestrasController.actualizarmuestra);
 router.post('/anularmuestra', muestrasController.anularmuestra); // Ruta para anular/eliminar lógicamente una muestra
 router.put('/anularmuestra/:id', muestrasController.anularmuestra);
 router.delete('/anularmuestra/:id', muestrasController.anularmuestra);
+router.delete('/eliminarproductocrm/:id', muestrasController.eliminarproductocrm); // Ruta para eliminar producto CRM (Regla 1)
+router.post('/eliminarproductocrm', muestrasController.eliminarproductocrm);
+router.get('/listarproductoscrmcompleto', muestrasController.listarproductoscrmcompleto); // Listar productos CRM con métricas
+router.post('/listarproductoscrmcompleto', muestrasController.listarproductoscrmcompleto);
+router.put('/actualizarproductocrm/:id', muestrasController.actualizarproductocrm); // Actualizar producto CRM
+router.post('/actualizarproductocrm', muestrasController.actualizarproductocrm);
 module.exports = router;
 // Middleware para verificar el token
 function verifyToken(req, res, next) {
