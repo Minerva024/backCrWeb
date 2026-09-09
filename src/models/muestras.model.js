@@ -34,8 +34,20 @@ muestras.ingresoproducto = async function (auxproducto, result) {
                 return result(err, null);
             }
 
-            const json = JSON.parse(JSON.stringify(res));
-            result(null, json);
+            const usuarioCreacion = auxproducto.usuario_creacion || auxproducto.responsable || auxproducto.usuario || null;
+            if (usuarioCreacion) {
+                const queryUpd = "UPDATE mm_productocrm SET usuario_creacion = ?, fecha_creacion = NOW(), activo = 1 WHERE nombreproducto = ? ORDER BY idproductocrm DESC LIMIT 1";
+                dbConnMySQL.query(queryUpd, [usuarioCreacion, auxproducto.nombreproducto], function (errUpd, resUpd) {
+                    if (errUpd) {
+                        console.error("⚠️ Error actualizando usuario_creacion en mm_productocrm:", errUpd);
+                    }
+                    const json = JSON.parse(JSON.stringify(res));
+                    result(null, json);
+                });
+            } else {
+                const json = JSON.parse(JSON.stringify(res));
+                result(null, json);
+            }
         });
     } catch (error) {
         console.error("Error general:", error);
@@ -235,7 +247,7 @@ function listarproductossap(aux, result) {
         });
     });
 };
-//Funcion para listar los productos del CRM.
+//Funcion para listar los productos del CRM activos.
 function obtenerproductosCRM() {
     return new Promise((resolve, reject) => {
         const query = `
@@ -243,7 +255,8 @@ function obtenerproductosCRM() {
             idproductocrm as "codigo",
             nombreproducto as "nombre",
             'CRM' as "origen"
-             FROM mm_productocrm where issap=false and itemcodesap is null;
+             FROM mm_productocrm 
+             WHERE issap=false AND itemcodesap IS NULL AND (activo = 1 OR activo IS NULL);
         `;
 
         dbConnMySQL.query(query, (err, res) => {
@@ -261,19 +274,25 @@ function listamuestrasubicacion(auxciudad) {
         ]
         dbConnMySQL.query(query, params, (err, res) => {
             if (err) return reject(err);
-            resolve(JSON.parse(JSON.stringify(res[0])));
+            let filas = JSON.parse(JSON.stringify(res[0]));
+            if (Array.isArray(filas)) {
+                // Filtrar solo las muestras activas (evita mostrar muestras anuladas/eliminadas)
+                filas = filas.filter(f => f.activo === undefined || f.activo === null || f.activo == 1);
+            }
+            resolve(filas);
         });
     });
 }
 function registrarmuestra(auxmuestra) {
     return new Promise((resolve, reject) => {
         var query = "CALL mm_registrarmuestra(?,?,?,?,?,?,?,?)";
+        const responsable = auxmuestra.responsableingreso || auxmuestra.responsable || auxmuestra.usuario || null;
         const params = [
             auxmuestra.idproveedorcrm,
             auxmuestra.idproveedorsap,
             auxmuestra.idproductocrm,
             auxmuestra.idproductosap,
-            auxmuestra.responsableingreso,
+            responsable,
             auxmuestra.cantidad,
             auxmuestra.nombrereferencial,
             auxmuestra.ciudad
@@ -369,6 +388,7 @@ muestras.listarmuestrasubicar = async function (auxciudad, result) {
         const listadomuestras = await listamuestrasubicacion(auxciudad);
         const listadoproductossap = await listarproductossap();
         const listaproveedoressap = await listarproveedoressap();
+        const listaproveedorescrm = await obtenerProveedoresCRM();
         const empaques = await obtenerempaquesproductos();
         const ubicaciones = await obtenerubicacionesbodega(auxciudad);
         const muestrasubicacion = [];
@@ -376,8 +396,7 @@ muestras.listarmuestrasubicar = async function (auxciudad, result) {
             muestrasubicacion,
             ubicaciones,
             empaques
-
-        ]
+        ];
         for (let i = 0; i < listadomuestras.length; i++) {
             const element = listadomuestras[i];
             if (element.idproductosap != null) {
@@ -388,12 +407,20 @@ muestras.listarmuestrasubicar = async function (auxciudad, result) {
                     element.nombreproducto = producto.nombre;
                 }
             }
+            let nombreproveedor = '';
             if (element.idproveedorsap != null) {
-                const producto = listaproveedoressap.find(
-                    p => p.codigo === element.idproveedorsap
+                const prov = listaproveedoressap.find(
+                    p => String(p.codigo) === String(element.idproveedorsap)
                 );
-                if (producto) {
-                    element.nombre = producto.nombre;
+                if (prov) {
+                    nombreproveedor = prov.nombre;
+                }
+            } else if (element.idproveedorcrm != null) {
+                const prov = listaproveedorescrm.find(
+                    p => String(p.codigo) === String(element.idproveedorcrm)
+                );
+                if (prov) {
+                    nombreproveedor = prov.nombre;
                 }
             }
             //Armo el listado final con los campos necesarios para mostrar
@@ -401,6 +428,7 @@ muestras.listarmuestrasubicar = async function (auxciudad, result) {
                 id: element.idmm_muestra,
                 fechaingreso: element.fechahoraingreso,
                 producto: element.nombreproducto,
+                proveedor: nombreproveedor || 'Sin proveedor',
                 cantidadregistrada: element.cantidad,
                 nombrereferencial: element.nombrereferencial,
                 ciudad: element.ciudad,
@@ -408,15 +436,9 @@ muestras.listarmuestrasubicar = async function (auxciudad, result) {
                 idproductocrm: element.idproductocrm,
                 idproveedorsap: element.idproveedorsap,
                 idproveedorcrm: element.idproveedorcrm,
+                responsableingreso: element.responsableingreso || '',
                 lotes: []
-                /*idtipoempaque: element.idtipoempaque,
-                idubicacion: element.idubicacion,
-                cantidadrecibida: element.cantidad,
-                lote: element.lote,
-                responsableubicacion: element.responsableubicacion,
-                
-                seleccionado: false*/
-            }
+            };
             muestrasubicacion.push(auxmuestra);
         }
 
@@ -1848,5 +1870,82 @@ muestras.actualizarmuestra = function (idmuestra, aux, result) {
     }
 };
 
-module.exports = muestras;
+// Función para eliminar directamente el ingreso de la muestra en mm_muestra y opcionalmente deshabilitar el producto en mm_productocrm
+muestras.anularmuestra = function (datos, result) {
+    try {
+        const idmuestra = datos.id || datos.idmuestra || datos.idmm_muestra;
+        const usuarioEliminacion = datos.usuario || datos.usuario_eliminacion || datos.responsable || null;
+        const motivoEliminacion = datos.motivo || datos.motivo_eliminacion || 'Eliminación desde Ubicar Muestra';
+        const deshabilitarProducto = datos.deshabilitarproducto || datos.deshabilitarProductoCRM || false;
 
+        if (!idmuestra) {
+            return result({ message: "ID de muestra no proporcionado" }, null);
+        }
+
+        // 1. Validar que la muestra exista y verificar su origen (SAP vs CRM)
+        const queryCheck = "SELECT idmm_muestra, idproductocrm, idproductosap, nombrereferencial FROM mm_muestra WHERE idmm_muestra = ?";
+        dbConnMySQL.query(queryCheck, [idmuestra], function (errCheck, resCheck) {
+            if (errCheck) {
+                console.error("❌ [MYSQL] Error verificando origen de muestra:", errCheck);
+                return result(errCheck, null);
+            }
+
+            if (!resCheck || resCheck.length === 0) {
+                console.warn(`⚠️ [MYSQL] No se encontró la muestra con ID ${idmuestra}`);
+                return result(null, { respuesta: false, message: `No se encontró la muestra con ID ${idmuestra}` });
+            }
+
+            const muestraData = resCheck[0];
+            const idproductocrm = muestraData.idproductocrm;
+
+            // 2. Si se solicitó deshabilitar también el producto en el catálogo mm_productocrm (Nivel B, solo aplica si es producto CRM)
+            if (deshabilitarProducto && idproductocrm) {
+                const queryDeshabilitarProd = `
+                    UPDATE mm_productocrm
+                    SET activo = 0,
+                        usuario_eliminacion = ?,
+                        fecha_eliminacion = NOW()
+                    WHERE idproductocrm = ?
+                `;
+                dbConnMySQL.query(queryDeshabilitarProd, [usuarioEliminacion, idproductocrm], function (errProd, resProd) {
+                    if (errProd) {
+                        console.error("⚠️ [MYSQL] Error al deshabilitar producto en mm_productocrm:", errProd);
+                    } else {
+                        console.log(`⚡ [MYSQL] Producto CRM ID ${idproductocrm} deshabilitado (activo = 0)`);
+                    }
+                });
+            }
+
+            // 3. Borrado lógico de la muestra en mm_muestra (Nivel A con auditoría)
+            const queryAnularMuestra = `
+                UPDATE mm_muestra
+                SET activo = 0,
+                    usuario_eliminacion = ?,
+                    fecha_eliminacion = NOW(),
+                    motivo_eliminacion = ?
+                WHERE idmm_muestra = ?
+            `;
+            console.log(`⚡ [MYSQL] Anulando lógicamente muestra ID ${idmuestra} por usuario: ${usuarioEliminacion}`);
+            dbConnMySQL.query(queryAnularMuestra, [usuarioEliminacion, motivoEliminacion, idmuestra], function (errDel, resDel) {
+                if (errDel) {
+                    console.error("❌ [MYSQL] Error al anular muestra:", errDel);
+                    return result(errDel, null);
+                }
+
+                console.log(`✅ [MYSQL] Muestra ID ${idmuestra} marcada como inactiva (activo = 0) exitosamente`);
+                return result(null, {
+                    respuesta: true,
+                    message: deshabilitarProducto
+                        ? "Muestra eliminada y producto de catálogo deshabilitado correctamente."
+                        : "Muestra eliminada correctamente.",
+                    affectedRows: resDel.affectedRows
+                });
+            });
+        });
+    } catch (error) {
+        console.error("Error en anularmuestra:", error);
+        result(error, null);
+    }
+};
+
+module.exports = muestras;

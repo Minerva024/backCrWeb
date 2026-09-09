@@ -820,3 +820,40 @@ exports.actualizarmuestra = function (req, res) {
         });
     }
 }
+
+// Controller para anular / eliminar lógicamente una muestra
+exports.anularmuestra = function (req, res) {
+    try {
+        const id = req.params.id || req.body?.id || req.body?.idmm_muestra || req.body?.idmuestra;
+        const body = req.body || {};
+        body.id = id;
+
+        if (!id) {
+            return res.status(400).json({
+                error: true,
+                message: "ID de muestra no proporcionado"
+            });
+        }
+
+        console.log("➡️ [BACKEND] Petición anularmuestra recibida para ID:", id, body);
+        muestras.anularmuestra(body, function (err, respuesta) {
+            if (err) {
+                console.error("❌ [BACKEND] Error al anular muestra:", err);
+                return res.status(500).json({
+                    error: true,
+                    message: "Error interno del servidor al anular la muestra"
+                });
+            }
+            return res.status(200).json({
+                error: false,
+                data: respuesta
+            });
+        });
+    } catch (error) {
+        console.error("❌ [BACKEND] Error inesperado en anularmuestra:", error);
+        return res.status(500).json({
+            error: true,
+            message: "Error inesperado del servidor"
+        });
+    }
+}

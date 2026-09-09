@@ -36,6 +36,9 @@ router.patch('/actualizarmuestra/:id', muestrasController.actualizarmuestra); //
 router.put('/actualizarmuestra', muestrasController.actualizarmuestra);
 router.patch('/actualizarmuestra', muestrasController.actualizarmuestra);
 router.post('/actualizarmuestra', muestrasController.actualizarmuestra);
+router.post('/anularmuestra', muestrasController.anularmuestra); // Ruta para anular/eliminar lógicamente una muestra
+router.put('/anularmuestra/:id', muestrasController.anularmuestra);
+router.delete('/anularmuestra/:id', muestrasController.anularmuestra);
 module.exports = router;
 // Middleware para verificar el token
 function verifyToken(req, res, next) {
