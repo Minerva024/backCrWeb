@@ -271,15 +271,36 @@ function listamuestrasubicacion(auxciudad) {
         var query = "CALL mm_listarmuestrasubicar(?)";
         const params = [
             auxciudad.ciudad
-        ]
+        ];
         dbConnMySQL.query(query, params, (err, res) => {
             if (err) return reject(err);
             let filas = JSON.parse(JSON.stringify(res[0]));
-            if (Array.isArray(filas)) {
-                // Filtrar solo las muestras activas (evita mostrar muestras anuladas/eliminadas)
-                filas = filas.filter(f => f.activo === undefined || f.activo === null || f.activo == 1);
+            if (!Array.isArray(filas) || filas.length === 0) {
+                return resolve([]);
             }
-            resolve(filas);
+
+            // Consultar el estado activo real directamente en la tabla mm_muestra
+            const ids = filas.map(f => f.idmm_muestra).filter(id => id != null);
+            if (ids.length === 0) return resolve(filas);
+
+            const queryActivos = "SELECT idmm_muestra, activo FROM mm_muestra WHERE idmm_muestra IN (?)";
+            dbConnMySQL.query(queryActivos, [ids], (errAct, resAct) => {
+                if (errAct) {
+                    console.error("❌ Error consultando activo en mm_muestra:", errAct);
+                    return resolve(filas);
+                }
+                const mapActivos = {};
+                resAct.forEach(r => {
+                    mapActivos[r.idmm_muestra] = r.activo;
+                });
+
+                // Filtrar excluyendo las que tienen activo == 0 (inactivas/anuladas)
+                const filasActivas = filas.filter(f => {
+                    const act = mapActivos[f.idmm_muestra];
+                    return act !== 0 && act !== '0';
+                });
+                resolve(filasActivas);
+            });
         });
     });
 }
@@ -1871,15 +1892,19 @@ muestras.actualizarmuestra = function (idmuestra, aux, result) {
 };
 
 // Función para eliminar directamente el ingreso de la muestra en mm_muestra y opcionalmente deshabilitar el producto en mm_productocrm
+// Función para anular / eliminar lógicamente una muestra y opcionalmente deshabilitar el producto CRM
 muestras.anularmuestra = function (datos, result) {
     try {
-        const idmuestra = datos.id || datos.idmuestra || datos.idmm_muestra;
+        const idmuestra = Number(datos.id || datos.idmuestra || datos.idmm_muestra);
         const usuarioEliminacion = datos.usuario || datos.usuario_eliminacion || datos.responsable || null;
         const motivoEliminacion = datos.motivo || datos.motivo_eliminacion || 'Eliminación desde Ubicar Muestra';
         const deshabilitarProducto = datos.deshabilitarproducto || datos.deshabilitarProductoCRM || false;
 
-        if (!idmuestra) {
-            return result({ message: "ID de muestra no proporcionado" }, null);
+        console.log("➡️ [BACKEND] anularmuestra datos recibidos:", { idmuestra, usuarioEliminacion, motivoEliminacion, deshabilitarProducto });
+
+        if (!idmuestra || isNaN(idmuestra)) {
+            console.error("❌ [BACKEND] ID de muestra inválido:", datos);
+            return result({ message: "ID de muestra no proporcionado o inválido" }, null);
         }
 
         // 1. Validar que la muestra exista y verificar su origen (SAP vs CRM)
@@ -1932,7 +1957,14 @@ muestras.anularmuestra = function (datos, result) {
                     return result(errDel, null);
                 }
 
-                console.log(`✅ [MYSQL] Muestra ID ${idmuestra} marcada como inactiva (activo = 0) exitosamente`);
+                console.log(`✅ [MYSQL] Resultado UPDATE mm_muestra:`, resDel);
+                if (resDel.affectedRows === 0) {
+                    return result(null, {
+                        respuesta: false,
+                        message: "No se pudo actualizar la muestra en la base de datos (0 filas afectadas)."
+                    });
+                }
+
                 return result(null, {
                     respuesta: true,
                     message: deshabilitarProducto
