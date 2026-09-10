@@ -928,3 +928,97 @@ exports.actualizarproductocrm = function (req, res) {
         return res.status(500).json({ error: true, message: error.message || "Error inesperado del servidor" });
     }
 };
+
+// Controller para listar proveedores CRM con conteo de muestras
+exports.listarproveedorescrmcompleto = function (req, res) {
+    try {
+        muestras.listarproveedorescrmcompleto(function (err, proveedores) {
+            if (err) {
+                console.error("❌ [BACKEND] Error en listarproveedorescrmcompleto:", err);
+                return res.status(500).json({ error: true, message: err.sqlMessage || err.message || "Error al listar proveedores CRM" });
+            }
+            return res.status(200).json({ error: false, data: proveedores });
+        });
+    } catch (error) {
+        console.error("❌ [BACKEND] Error inesperado:", error);
+        return res.status(500).json({ error: true, message: error.message || "Error inesperado del servidor" });
+    }
+};
+
+// Controller para actualizar un proveedor CRM
+exports.actualizarproveedorcrm = function (req, res) {
+    try {
+        const id = req.params.id || req.body?.id || req.body?.idmm_proveedor;
+        const body = req.body || {};
+        muestras.actualizarproveedorcrm(id, body, function (err, respuesta) {
+            if (err) {
+                console.error("❌ [BACKEND] Error en actualizarproveedorcrm:", err);
+                return res.status(500).json({ error: true, message: err.sqlMessage || err.message || "Error al actualizar proveedor CRM" });
+            }
+            return res.status(200).json({ error: false, data: respuesta });
+        });
+    } catch (error) {
+        console.error("❌ [BACKEND] Error inesperado:", error);
+        return res.status(500).json({ error: true, message: error.message || "Error inesperado del servidor" });
+    }
+};
+
+// Controller para inactivar un proveedor CRM con motivo
+exports.inactivarproveedorcrm = function (req, res) {
+    try {
+        const id = req.params.id || req.body?.id || req.body?.idmm_proveedor;
+        const body = req.body || {};
+        body.idmm_proveedor = id;
+
+        muestras.inactivarproveedorcrm(body, function (err, respuesta) {
+            if (err) {
+                console.error("❌ [BACKEND] Error en inactivarproveedorcrm:", err);
+                return res.status(500).json({ error: true, message: err.sqlMessage || err.message || "Error al inactivar proveedor CRM" });
+            }
+            return res.status(200).json({ error: false, data: respuesta });
+        });
+    } catch (error) {
+        console.error("❌ [BACKEND] Error inesperado:", error);
+        return res.status(500).json({ error: true, message: error.message || "Error inesperado del servidor" });
+    }
+};
+
+// Controller para reactivar un proveedor CRM con motivo
+exports.reactivarproveedorcrm = function (req, res) {
+    try {
+        const id = req.params.id || req.body?.id || req.body?.idmm_proveedor;
+        const body = req.body || {};
+        body.idmm_proveedor = id;
+
+        muestras.reactivarproveedorcrm(body, function (err, respuesta) {
+            if (err) {
+                console.error("❌ [BACKEND] Error en reactivarproveedorcrm:", err);
+                return res.status(500).json({ error: true, message: err.sqlMessage || err.message || "Error al reactivar proveedor CRM" });
+            }
+            return res.status(200).json({ error: false, data: respuesta });
+        });
+    } catch (error) {
+        console.error("❌ [BACKEND] Error inesperado:", error);
+        return res.status(500).json({ error: true, message: error.message || "Error inesperado del servidor" });
+    }
+};
+
+// Controller para eliminar un proveedor CRM
+exports.eliminarproveedorcrm = function (req, res) {
+    try {
+        const id = req.params.id || req.body?.id || req.body?.idmm_proveedor;
+        const body = req.body || {};
+        body.idmm_proveedor = id;
+
+        muestras.eliminarproveedorcrm(body, function (err, respuesta) {
+            if (err) {
+                console.error("❌ [BACKEND] Error en eliminarproveedorcrm:", err);
+                return res.status(500).json({ error: true, message: err.sqlMessage || err.message || "Error al eliminar proveedor CRM" });
+            }
+            return res.status(200).json({ error: false, data: respuesta });
+        });
+    } catch (error) {
+        console.error("❌ [BACKEND] Error inesperado:", error);
+        return res.status(500).json({ error: true, message: error.message || "Error inesperado del servidor" });
+    }
+};

@@ -45,6 +45,15 @@ router.get('/listarproductoscrmcompleto', muestrasController.listarproductoscrmc
 router.post('/listarproductoscrmcompleto', muestrasController.listarproductoscrmcompleto);
 router.put('/actualizarproductocrm/:id', muestrasController.actualizarproductocrm); // Actualizar producto CRM
 router.post('/actualizarproductocrm', muestrasController.actualizarproductocrm);
+router.get('/listarproveedorescrmcompleto', muestrasController.listarproveedorescrmcompleto); // Listar proveedores CRM con métricas
+router.post('/listarproveedorescrmcompleto', muestrasController.listarproveedorescrmcompleto);
+router.put('/actualizarproveedorcrm/:id', muestrasController.actualizarproveedorcrm); // Actualizar proveedor CRM
+router.put('/inactivarproveedorcrm/:id', muestrasController.inactivarproveedorcrm); // Inactivar proveedor CRM con motivo
+router.post('/inactivarproveedorcrm', muestrasController.inactivarproveedorcrm);
+router.put('/reactivarproveedorcrm/:id', muestrasController.reactivarproveedorcrm); // Reactivar proveedor CRM con motivo
+router.post('/reactivarproveedorcrm', muestrasController.reactivarproveedorcrm);
+router.delete('/eliminarproveedorcrm/:id', muestrasController.eliminarproveedorcrm); // Eliminar proveedor CRM
+router.post('/eliminarproveedorcrm', muestrasController.eliminarproveedorcrm);
 module.exports = router;
 // Middleware para verificar el token
 function verifyToken(req, res, next) {

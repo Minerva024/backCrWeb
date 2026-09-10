@@ -136,7 +136,8 @@ function obtenerProveedoresCRM() {
                 idmm_proveedor     AS codigo,
                 nombre AS nombre,
                 'CRM'           AS origen
-            FROM mm_proveedor where issap=0;
+            FROM mm_proveedor 
+            WHERE (issap = 0 OR issap IS NULL) AND (activo = 1 OR activo IS NULL);
         `;
 
         dbConnMySQL.query(query, (err, res) => {
@@ -1860,8 +1861,8 @@ function registrarAuditoriaEliminacion(datosAuditoria) {
         const createTableQuery = `
             CREATE TABLE IF NOT EXISTS auditoria_eliminaciones (
                 idauditoria INT AUTO_INCREMENT PRIMARY KEY,
-                modulo ENUM('MUESTRAS', 'RECLAMOS') NOT NULL COMMENT 'Módulo de origen',
-                tipo_registro ENUM('ELIMINACION_MUESTRA', 'ELIMINACION_PRODUCTO_CRM', 'INACTIVACION_PRODUCTO_CRM') NOT NULL,
+                modulo VARCHAR(50) NOT NULL COMMENT 'Módulo de origen',
+                tipo_registro VARCHAR(100) NOT NULL COMMENT 'ELIMINACION_MUESTRA, ELIMINACION_PRODUCTO_CRM, ELIMINACION_PROVEEDOR_CRM',
                 id_referencia INT NOT NULL COMMENT 'ID del registro principal (idmm_muestra, idproductocrm)',
                 codigo_referencia VARCHAR(100) NULL COMMENT 'Código SAP (ItemCode) o Código CRM',
                 nombre_referencia VARCHAR(255) NULL COMMENT 'Nombre de la muestra o producto',
@@ -2103,7 +2104,9 @@ muestras.listarproductoscrmcompleto = function (result) {
                 : [];
 
             let campoCategoria = 'NULL AS idcategoriasap';
-            if (columnas.includes('idcategoriasap')) {
+            if (columnas.includes('idtipocategoria')) {
+                campoCategoria = 'p.idtipocategoria AS idcategoriasap';
+            } else if (columnas.includes('idcategoriasap')) {
                 campoCategoria = 'p.idcategoriasap';
             } else if (columnas.includes('idcategoria')) {
                 campoCategoria = 'p.idcategoria AS idcategoriasap';
@@ -2125,6 +2128,48 @@ muestras.listarproductoscrmcompleto = function (result) {
                     p.idproductocrm,
                     p.nombreproducto,
                     ${campoCategoria},
+                    COALESCE((
+                        SELECT GROUP_CONCAT(DISTINCT m.ciudad SEPARATOR ', ')
+                        FROM mm_muestra m
+                        WHERE m.idproductocrm = p.idproductocrm AND m.ciudad IS NOT NULL AND m.ciudad != ''
+                    ), 'Sin bodega') AS bodega,
+                    COALESCE((
+                        SELECT m.cantidad
+                        FROM mm_muestra m
+                        WHERE m.idproductocrm = p.idproductocrm
+                        ORDER BY m.idmm_muestra DESC
+                        LIMIT 1
+                    ), 0) AS peso_muestra,
+                    (
+                        COALESCE((
+                            SELECT SUM(os.cantidad)
+                            FROM mm_lotemuestra lm
+                            INNER JOIN mm_operacionstock os ON lm.idmm_lotemuestra = os.idingresolotemuestra
+                            WHERE lm.idproductocrm = p.idproductocrm AND lm.ciudadarribo = 'UIO' AND os.idtipooperacionstock = 1
+                        ), 0)
+                        -
+                        COALESCE((
+                            SELECT SUM(os.cantidad)
+                            FROM mm_solicitudmuestra sm
+                            INNER JOIN mm_operacionstock os ON sm.idmm_solicitudmuestra = os.idsolicitudmuestra
+                            WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'UIO' AND os.idtipooperacionstock IN (2, 3)
+                        ), 0)
+                    ) AS stock_uio,
+                    (
+                        COALESCE((
+                            SELECT SUM(os.cantidad)
+                            FROM mm_lotemuestra lm
+                            INNER JOIN mm_operacionstock os ON lm.idmm_lotemuestra = os.idingresolotemuestra
+                            WHERE lm.idproductocrm = p.idproductocrm AND lm.ciudadarribo = 'GYE' AND os.idtipooperacionstock = 1
+                        ), 0)
+                        -
+                        COALESCE((
+                            SELECT SUM(os.cantidad)
+                            FROM mm_solicitudmuestra sm
+                            INNER JOIN mm_operacionstock os ON sm.idmm_solicitudmuestra = os.idsolicitudmuestra
+                            WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'GYE' AND os.idtipooperacionstock IN (2, 3)
+                        ), 0)
+                    ) AS stock_gye,
                     (SELECT COUNT(*) FROM mm_muestra m WHERE m.idproductocrm = p.idproductocrm) AS total_muestras
                 FROM mm_productocrm p
                 ${whereSQL}
@@ -2140,6 +2185,10 @@ muestras.listarproductoscrmcompleto = function (result) {
                             p.idproductocrm,
                             p.nombreproducto,
                             ${campoCategoria},
+                            'Sin bodega' AS bodega,
+                            0 AS peso_muestra,
+                            0 AS stock_uio,
+                            0 AS stock_gye,
                             0 AS total_muestras
                         FROM mm_productocrm p
                         ${whereSQL}
@@ -2167,7 +2216,9 @@ muestras.actualizarproductocrm = function (id, datos, result) {
     try {
         const idproductocrm = Number(id || datos.idproductocrm || datos.id);
         const nombreproducto = (datos.nombreproducto || '').trim().toUpperCase();
-        const idcategoriasap = datos.idcategoriasap !== undefined ? datos.idcategoriasap : null;
+        const idcategoriasap = (datos.idcategoriasap !== undefined && datos.idcategoriasap !== null && datos.idcategoriasap !== '') 
+            ? Number(datos.idcategoriasap) 
+            : null;
 
         if (!idproductocrm || !nombreproducto) {
             return result({ message: "ID y nombre del producto son requeridos" }, null);
@@ -2181,7 +2232,10 @@ muestras.actualizarproductocrm = function (id, datos, result) {
             let query = "UPDATE mm_productocrm SET nombreproducto = ? WHERE idproductocrm = ?";
             let params = [nombreproducto, idproductocrm];
 
-            if (columnas.includes('idcategoriasap')) {
+            if (columnas.includes('idtipocategoria')) {
+                query = "UPDATE mm_productocrm SET nombreproducto = ?, idtipocategoria = ? WHERE idproductocrm = ?";
+                params = [nombreproducto, idcategoriasap, idproductocrm];
+            } else if (columnas.includes('idcategoriasap')) {
                 query = "UPDATE mm_productocrm SET nombreproducto = ?, idcategoriasap = ? WHERE idproductocrm = ?";
                 params = [nombreproducto, idcategoriasap, idproductocrm];
             } else if (columnas.includes('idcategoria')) {
@@ -2206,6 +2260,245 @@ muestras.actualizarproductocrm = function (id, datos, result) {
         });
     } catch (error) {
         console.error("Error en actualizarproductocrm:", error);
+        result(error, null);
+    }
+};
+
+// Listar proveedores de CRM con conteo de muestras vinculadas y datos de auditoría
+muestras.listarproveedorescrmcompleto = function (result) {
+    try {
+        const query = `
+            SELECT 
+                p.idmm_proveedor,
+                p.nombre,
+                COALESCE(p.activo, 1) AS activo,
+                p.usuario_inactiva,
+                p.fecha_inactiva,
+                p.motivo_inactiva,
+                p.usuario_reactiva,
+                p.fecha_reactiva,
+                p.motivo_reactiva,
+                'CRM' AS origen,
+                (SELECT COUNT(*) FROM mm_muestra m WHERE m.idproveedorcrm = p.idmm_proveedor) AS total_muestras
+            FROM mm_proveedor p
+            WHERE (p.issap = 0 OR p.issap IS NULL OR p.issap = false)
+            ORDER BY COALESCE(p.activo, 1) DESC, p.idmm_proveedor DESC;
+        `;
+        dbConnMySQL.query(query, (err, res) => {
+            if (err) {
+                console.error("❌ [MYSQL] Error al listar proveedores CRM completos:", err);
+                return result(err, null);
+            }
+            return result(null, JSON.parse(JSON.stringify(res)));
+        });
+    } catch (error) {
+        console.error("Error en listarproveedorescrmcompleto:", error);
+        result(error, null);
+    }
+};
+
+// Inactivar un proveedor de CRM guardando usuario, fecha y motivo
+muestras.inactivarproveedorcrm = function (datos, result) {
+    try {
+        const idmm_proveedor = Number(datos.id || datos.idmm_proveedor || datos.idproveedorcrm);
+        const usuario = (datos.usuario || datos.responsable || 'desconocido').toString().trim();
+        const motivo = (datos.motivo || '').toString().trim();
+
+        console.log("➡️ [BACKEND] inactivarproveedorcrm datos recibidos:", { idmm_proveedor, usuario, motivo });
+
+        if (!idmm_proveedor || isNaN(idmm_proveedor)) {
+            return result({ message: "ID de proveedor CRM no proporcionado o inválido" }, null);
+        }
+
+        if (!motivo) {
+            return result(null, { respuesta: false, message: "El motivo de inactivación es obligatorio." });
+        }
+
+        const query = `
+            UPDATE mm_proveedor 
+            SET activo = 0, 
+                usuario_inactiva = ?, 
+                fecha_inactiva = NOW(), 
+                motivo_inactiva = ? 
+            WHERE idmm_proveedor = ? AND (issap = 0 OR issap IS NULL)
+        `;
+
+        dbConnMySQL.query(query, [usuario, motivo, idmm_proveedor], (err, res) => {
+            if (err) {
+                console.error("❌ [MYSQL] Error al inactivar proveedor CRM:", err);
+                return result(err, null);
+            }
+            if (res.affectedRows === 0) {
+                return result(null, { respuesta: false, message: "No se encontró el proveedor a inactivar." });
+            }
+            return result(null, {
+                respuesta: true,
+                message: "Proveedor inactivado correctamente.",
+                affectedRows: res.affectedRows
+            });
+        });
+    } catch (error) {
+        console.error("Error en inactivarproveedorcrm:", error);
+        result(error, null);
+    }
+};
+
+// Reactivar un proveedor de CRM guardando usuario, fecha y motivo
+muestras.reactivarproveedorcrm = function (datos, result) {
+    try {
+        const idmm_proveedor = Number(datos.id || datos.idmm_proveedor || datos.idproveedorcrm);
+        const usuario = (datos.usuario || datos.responsable || 'desconocido').toString().trim();
+        const motivo = (datos.motivo || '').toString().trim();
+
+        console.log("➡️ [BACKEND] reactivarproveedorcrm datos recibidos:", { idmm_proveedor, usuario, motivo });
+
+        if (!idmm_proveedor || isNaN(idmm_proveedor)) {
+            return result({ message: "ID de proveedor CRM no proporcionado o inválido" }, null);
+        }
+
+        if (!motivo) {
+            return result(null, { respuesta: false, message: "El motivo de reactivación es obligatorio." });
+        }
+
+        const query = `
+            UPDATE mm_proveedor 
+            SET activo = 1, 
+                usuario_reactiva = ?, 
+                fecha_reactiva = NOW(), 
+                motivo_reactiva = ? 
+            WHERE idmm_proveedor = ? AND (issap = 0 OR issap IS NULL)
+        `;
+
+        dbConnMySQL.query(query, [usuario, motivo, idmm_proveedor], (err, res) => {
+            if (err) {
+                console.error("❌ [MYSQL] Error al reactivar proveedor CRM:", err);
+                return result(err, null);
+            }
+            if (res.affectedRows === 0) {
+                return result(null, { respuesta: false, message: "No se encontró el proveedor a reactivar." });
+            }
+            return result(null, {
+                respuesta: true,
+                message: "Proveedor reactivado correctamente.",
+                affectedRows: res.affectedRows
+            });
+        });
+    } catch (error) {
+        console.error("Error en reactivarproveedorcrm:", error);
+        result(error, null);
+    }
+};
+
+// Actualizar el nombre de un proveedor de CRM
+muestras.actualizarproveedorcrm = function (id, datos, result) {
+    try {
+        const idmm_proveedor = Number(id || datos.idmm_proveedor || datos.id);
+        const nombre = (datos.nombre || '').trim().toUpperCase();
+
+        if (!idmm_proveedor || !nombre) {
+            return result({ message: "ID y nombre del proveedor son requeridos" }, null);
+        }
+
+        const query = "UPDATE mm_proveedor SET nombre = ? WHERE idmm_proveedor = ?";
+        dbConnMySQL.query(query, [nombre, idmm_proveedor], (err, res) => {
+            if (err) {
+                console.error("❌ [MYSQL] Error al actualizar proveedor CRM:", err);
+                return result(err, null);
+            }
+            if (res.affectedRows === 0) {
+                return result(null, { respuesta: false, message: "No se encontró el proveedor a actualizar." });
+            }
+            return result(null, {
+                respuesta: true,
+                message: "Proveedor CRM actualizado correctamente.",
+                affectedRows: res.affectedRows
+            });
+        });
+    } catch (error) {
+        console.error("Error en actualizarproveedorcrm:", error);
+        result(error, null);
+    }
+};
+
+// Eliminar un proveedor de CRM siempre y cuando no esté referenciado en mm_muestra
+muestras.eliminarproveedorcrm = function (datos, result) {
+    try {
+        const idproveedorcrm = Number(datos.id || datos.idmm_proveedor || datos.idproveedorcrm);
+        const usuarioEliminacion = datos.usuario || datos.responsable || 'desconocido';
+        const motivoEliminacion = (datos.motivo || '').toString().trim();
+
+        console.log("➡️ [BACKEND] eliminarproveedorcrm datos recibidos:", { idproveedorcrm, usuarioEliminacion, motivoEliminacion });
+
+        if (!idproveedorcrm || isNaN(idproveedorcrm)) {
+            return result({ message: "ID de proveedor CRM no proporcionado o inválido" }, null);
+        }
+
+        if (!motivoEliminacion) {
+            return result(null, { respuesta: false, message: "El motivo de eliminación es obligatorio para eliminar el proveedor." });
+        }
+
+        // 1. Validar que el proveedor no esté referenciado en mm_muestra
+        const queryCheckMuestra = "SELECT COUNT(*) AS total FROM mm_muestra WHERE idproveedorcrm = ?";
+        dbConnMySQL.query(queryCheckMuestra, [idproveedorcrm], function (errMuestra, resMuestra) {
+            if (errMuestra) {
+                console.error("❌ [MYSQL] Error verificando referencias en mm_muestra:", errMuestra);
+                return result(errMuestra, null);
+            }
+
+            const totalMuestras = resMuestra && resMuestra[0] ? resMuestra[0].total : 0;
+            if (totalMuestras > 0) {
+                return result(null, {
+                    respuesta: false,
+                    message: `No se puede eliminar el proveedor porque tiene ${totalMuestras} muestra(s) asociada(s).`
+                });
+            }
+
+            // 2. Obtener datos del proveedor para la auditoría
+            const queryGetProv = "SELECT nombre FROM mm_proveedor WHERE idmm_proveedor = ?";
+            dbConnMySQL.query(queryGetProv, [idproveedorcrm], async function (errProv, resProv) {
+                if (errProv) {
+                    return result(errProv, null);
+                }
+
+                if (!resProv || resProv.length === 0) {
+                    return result(null, {
+                        respuesta: false,
+                        message: `No se encontró el proveedor con ID ${idproveedorcrm}`
+                    });
+                }
+
+                const nombreProveedor = resProv[0].nombre;
+
+                // 3. Registrar auditoría en auditoria_eliminaciones
+                await registrarAuditoriaEliminacion({
+                    modulo: 'MUESTRAS',
+                    tipo_registro: 'ELIMINACION_PROVEEDOR_CRM',
+                    id_referencia: idproveedorcrm,
+                    codigo_referencia: `PROV-CRM-${idproveedorcrm}`,
+                    nombre_referencia: nombreProveedor,
+                    usuario: usuarioEliminacion,
+                    motivo: motivoEliminacion,
+                    detalle: {
+                        accion: 'ELIMINACION_DEFINITIVA_PROVEEDOR',
+                        total_muestras_asociadas: 0
+                    }
+                });
+
+                // 4. Eliminar directamente de mm_proveedor
+                const queryDeleteProv = "DELETE FROM mm_proveedor WHERE idmm_proveedor = ?";
+                dbConnMySQL.query(queryDeleteProv, [idproveedorcrm], function (errDel, resDel) {
+                    if (errDel) {
+                        return result(errDel, null);
+                    }
+                    return result(null, {
+                        respuesta: true,
+                        message: `Proveedor '${nombreProveedor}' eliminado correctamente.`
+                    });
+                });
+            });
+        });
+    } catch (error) {
+        console.error("Error en eliminarproveedorcrm:", error);
         result(error, null);
     }
 };
