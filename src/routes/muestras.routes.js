@@ -54,6 +54,9 @@ router.put('/reactivarproveedorcrm/:id', muestrasController.reactivarproveedorcr
 router.post('/reactivarproveedorcrm', muestrasController.reactivarproveedorcrm);
 router.delete('/eliminarproveedorcrm/:id', muestrasController.eliminarproveedorcrm); // Eliminar proveedor CRM
 router.post('/eliminarproveedorcrm', muestrasController.eliminarproveedorcrm);
+router.get('/detalleproductocrm/:id', muestrasController.obtenerDetalleProductoCRM); // Detalle completo de producto CRM con lotes y proveedores
+router.post('/detalleproductocrm/:id', muestrasController.obtenerDetalleProductoCRM);
+router.post('/detalleproductocrm', muestrasController.obtenerDetalleProductoCRM);
 module.exports = router;
 // Middleware para verificar el token
 function verifyToken(req, res, next) {

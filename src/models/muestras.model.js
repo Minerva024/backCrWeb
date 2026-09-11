@@ -295,6 +295,26 @@ muestras.registrarmuestra = async function (auxmuestra, result) {
         const respuesta = await registrarmuestra(auxmuestra);
 
         if (respuesta.isregis) {
+            // Persistir fraccionar y comentario_fraccionar en mm_muestra
+            const fraccionarVal = auxmuestra.fraccionar === 'SI' ? 'SI' : 'NO';
+            const comentarioVal = auxmuestra.fraccionar === 'SI' ? (auxmuestra.comentario_fraccionar || auxmuestra.comentario || '') : null;
+            
+            const queryUpdate = `
+                UPDATE mm_muestra 
+                SET fraccionar = ?, comentario_fraccionar = ? 
+                WHERE idmm_muestra = (SELECT idmm_muestra FROM (SELECT MAX(idmm_muestra) as idmm_muestra FROM mm_muestra) as t)
+            `;
+            const idTarget = respuesta.id || respuesta.idmm_muestra;
+            if (idTarget) {
+                dbConnMySQL.query("UPDATE mm_muestra SET fraccionar = ?, comentario_fraccionar = ? WHERE idmm_muestra = ?", [fraccionarVal, comentarioVal, idTarget], (errUpd) => {
+                    if (errUpd) console.error("⚠️ [MYSQL] Error actualizando campos de fraccionar en mm_muestra:", errUpd);
+                });
+            } else {
+                dbConnMySQL.query(queryUpdate, [fraccionarVal, comentarioVal], (errUpd) => {
+                    if (errUpd) console.error("⚠️ [MYSQL] Error actualizando campos de fraccionar en mm_muestra:", errUpd);
+                });
+            }
+
             result(null, { isregis: true, mess: respuesta.message });
         } else {
             result(null, { isregis: false, mess: respuesta.message });
@@ -366,6 +386,22 @@ muestras.ingresolotemuestra = async function (auxlotemuestra, result) {
         result(error, null);
     }
 }
+function obtenerProveedoresHistoricosPorProducto() {
+    return new Promise((resolve, reject) => {
+        const query = `
+            SELECT idproductocrm, idproductosap, idproveedorcrm, idproveedorsap 
+            FROM mm_muestra 
+            WHERE (idproductocrm IS NOT NULL OR idproductosap IS NOT NULL) 
+              AND (idproveedorcrm IS NOT NULL OR idproveedorsap IS NOT NULL)
+            GROUP BY idproductocrm, idproductosap, idproveedorcrm, idproveedorsap
+        `;
+        dbConnMySQL.query(query, (err, res) => {
+            if (err) return reject(err);
+            resolve(JSON.parse(JSON.stringify(res || [])));
+        });
+    });
+}
+
 //Funcion para agregar un lote de una nueva muestra.
 muestras.listarmuestrasubicar = async function (auxciudad, result) {
     try {
@@ -375,11 +411,19 @@ muestras.listarmuestrasubicar = async function (auxciudad, result) {
         const listaproveedorescrm = await obtenerProveedoresCRM();
         const empaques = await obtenerempaquesproductos();
         const ubicaciones = await obtenerubicacionesbodega(auxciudad);
+        const historicoProveedores = await obtenerProveedoresHistoricosPorProducto();
+
+        const todosLosProveedores = [
+            ...(listaproveedoressap || []).map(p => ({ codigo: p.codigo, nombre: p.nombre, origen: 'SAP' })),
+            ...(listaproveedorescrm || []).filter(p => p.activo === 1 || p.activo == null).map(p => ({ codigo: p.codigo, nombre: p.nombre, origen: 'CRM' }))
+        ];
+
         const muestrasubicacion = [];
         const datos = [
             muestrasubicacion,
             ubicaciones,
-            empaques
+            empaques,
+            todosLosProveedores
         ];
         for (let i = 0; i < listadomuestras.length; i++) {
             const element = listadomuestras[i];
@@ -407,6 +451,47 @@ muestras.listarmuestrasubicar = async function (auxciudad, result) {
                     nombreproveedor = prov.nombre;
                 }
             }
+
+            // Buscar proveedores relacionados al producto (históricos)
+            const proveedoresRelacionados = [];
+            const vistos = new Set();
+            const currentKey = element.idproveedorsap ? `SAP_${element.idproveedorsap}` : (element.idproveedorcrm ? `CRM_${element.idproveedorcrm}` : null);
+            if (currentKey) vistos.add(currentKey);
+
+            historicoProveedores.forEach(hp => {
+                const coincideProducto = (element.idproductocrm != null && String(hp.idproductocrm) === String(element.idproductocrm)) ||
+                                         (element.idproductosap != null && String(hp.idproductosap) === String(element.idproductosap));
+                if (coincideProducto) {
+                    if (hp.idproveedorsap != null) {
+                        const k = `SAP_${hp.idproveedorsap}`;
+                        if (!vistos.has(k)) {
+                            vistos.add(k);
+                            const prov = listaproveedoressap.find(p => String(p.codigo) === String(hp.idproveedorsap));
+                            if (prov) {
+                                proveedoresRelacionados.push({
+                                    codigo: prov.codigo,
+                                    nombre: prov.nombre,
+                                    origen: 'SAP'
+                                });
+                            }
+                        }
+                    } else if (hp.idproveedorcrm != null) {
+                        const k = `CRM_${hp.idproveedorcrm}`;
+                        if (!vistos.has(k)) {
+                            vistos.add(k);
+                            const prov = listaproveedorescrm.find(p => String(p.codigo) === String(hp.idproveedorcrm));
+                            if (prov) {
+                                proveedoresRelacionados.push({
+                                    codigo: prov.codigo,
+                                    nombre: prov.nombre,
+                                    origen: 'CRM'
+                                });
+                            }
+                        }
+                    }
+                }
+            });
+
             //Armo el listado final con los campos necesarios para mostrar
             let auxmuestra = {
                 id: element.idmm_muestra,
@@ -421,6 +506,9 @@ muestras.listarmuestrasubicar = async function (auxciudad, result) {
                 idproveedorsap: element.idproveedorsap,
                 idproveedorcrm: element.idproveedorcrm,
                 responsableingreso: element.responsableingreso || '',
+                proveedores_relacionados: proveedoresRelacionados,
+                fraccionar: element.fraccionar || 'NO',
+                comentario_fraccionar: element.comentario_fraccionar || '',
                 lotes: []
             };
             muestrasubicacion.push(auxmuestra);
@@ -473,8 +561,8 @@ muestras.actualizarinformacionmuestralote = async function (auxproducto, result)
                 idubicacion: item.idubicacion,
                 idproductocrm: auxproducto.idproductocrm,
                 idproductosap: auxproducto.idproductosap,
-                idproveedorsap: auxproducto.idproveedorsap,
-                idproveedorcrm: auxproducto.idproveedorcrm,
+                idproveedorsap: (item.idproveedorsap !== undefined && item.idproveedorsap !== null) ? item.idproveedorsap : auxproducto.idproveedorsap,
+                idproveedorcrm: (item.idproveedorcrm !== undefined && item.idproveedorcrm !== null) ? item.idproveedorcrm : auxproducto.idproveedorcrm,
                 responsableingreso: auxproducto.responsableingreso,
                 cantidadrecibida: item.cantidad,
                 id: auxproducto.id,
@@ -1784,7 +1872,9 @@ muestras.obtenermuestraxid = async function (idmuestra, result) {
                 cantidad: element.cantidad,
                 unidad: 2,
                 ciudad: element.ciudad,
-                nombrereferencial: element.nombrereferencial
+                nombrereferencial: element.nombrereferencial,
+                fraccionar: element.fraccionar || 'NO',
+                comentario_fraccionar: element.comentario_fraccionar || ''
             };
 
             result(null, data);
@@ -1804,7 +1894,9 @@ muestras.actualizarmuestra = function (idmuestra, aux, result) {
                 idproveedorsap = ?, 
                 cantidad = ?, 
                 ciudad = ?, 
-                nombrereferencial = ?
+                nombrereferencial = ?,
+                fraccionar = ?,
+                comentario_fraccionar = ?
             WHERE idmm_muestra = ?
         `;
         const params = [
@@ -1813,6 +1905,8 @@ muestras.actualizarmuestra = function (idmuestra, aux, result) {
             aux.cantidad,
             aux.ciudad,
             aux.nombrereferencial || aux.nombreproducto || null,
+            aux.fraccionar === 'SI' ? 'SI' : 'NO',
+            aux.fraccionar === 'SI' ? (aux.comentario_fraccionar || aux.comentario || '') : null,
             idmuestra
         ];
 
@@ -2114,6 +2208,10 @@ muestras.listarproductoscrmcompleto = function (result) {
                 campoCategoria = 'p.categoria AS idcategoriasap';
             }
 
+            let campoUsuarioAct = columnas.includes('usuario_actualizacion') ? 'p.usuario_actualizacion' : 'NULL AS usuario_actualizacion';
+            let campoFechaAct = columnas.includes('fecha_actualizacion') ? 'p.fecha_actualizacion' : 'NULL AS fecha_actualizacion';
+            let campoMotivoAct = columnas.includes('motivo_actualizacion') ? 'p.motivo_actualizacion' : 'NULL AS motivo_actualizacion';
+
             let whereClauses = [];
             if (columnas.includes('issap')) {
                 whereClauses.push('(p.issap = false OR p.issap = 0 OR p.issap IS NULL)');
@@ -2128,6 +2226,9 @@ muestras.listarproductoscrmcompleto = function (result) {
                     p.idproductocrm,
                     p.nombreproducto,
                     ${campoCategoria},
+                    ${campoUsuarioAct},
+                    ${campoFechaAct},
+                    ${campoMotivoAct},
                     COALESCE((
                         SELECT GROUP_CONCAT(DISTINCT m.ciudad SEPARATOR ', ')
                         FROM mm_muestra m
@@ -2185,6 +2286,9 @@ muestras.listarproductoscrmcompleto = function (result) {
                             p.idproductocrm,
                             p.nombreproducto,
                             ${campoCategoria},
+                            ${campoUsuarioAct},
+                            ${campoFechaAct},
+                            ${campoMotivoAct},
                             'Sin bodega' AS bodega,
                             0 AS peso_muestra,
                             0 AS stock_uio,
@@ -2211,7 +2315,7 @@ muestras.listarproductoscrmcompleto = function (result) {
     }
 };
 
-// Función para actualizar los datos de un producto CRM (nombre y categoría SAP)
+// Función para actualizar los datos de un producto CRM (nombre, categoría SAP y auditoría)
 muestras.actualizarproductocrm = function (id, datos, result) {
     try {
         const idproductocrm = Number(id || datos.idproductocrm || datos.id);
@@ -2219,9 +2323,15 @@ muestras.actualizarproductocrm = function (id, datos, result) {
         const idcategoriasap = (datos.idcategoriasap !== undefined && datos.idcategoriasap !== null && datos.idcategoriasap !== '') 
             ? Number(datos.idcategoriasap) 
             : null;
+        const usuario_actualizacion = (datos.usuario_actualizacion || datos.usuario || datos.responsable || 'desconocido').toString().trim();
+        const motivo_actualizacion = (datos.motivo_actualizacion || datos.motivo || '').toString().trim();
 
         if (!idproductocrm || !nombreproducto) {
             return result({ message: "ID y nombre del producto son requeridos" }, null);
+        }
+
+        if (!motivo_actualizacion) {
+            return result(null, { respuesta: false, message: "El motivo de actualización es obligatorio." });
         }
 
         dbConnMySQL.query("SHOW COLUMNS FROM mm_productocrm", (errCols, resCols) => {
@@ -2229,20 +2339,36 @@ muestras.actualizarproductocrm = function (id, datos, result) {
                 ? resCols.map(c => c.Field.toLowerCase())
                 : [];
 
-            let query = "UPDATE mm_productocrm SET nombreproducto = ? WHERE idproductocrm = ?";
-            let params = [nombreproducto, idproductocrm];
+            let updateFields = ["nombreproducto = ?"];
+            let params = [nombreproducto];
 
             if (columnas.includes('idtipocategoria')) {
-                query = "UPDATE mm_productocrm SET nombreproducto = ?, idtipocategoria = ? WHERE idproductocrm = ?";
-                params = [nombreproducto, idcategoriasap, idproductocrm];
+                updateFields.push("idtipocategoria = ?");
+                params.push(idcategoriasap);
             } else if (columnas.includes('idcategoriasap')) {
-                query = "UPDATE mm_productocrm SET nombreproducto = ?, idcategoriasap = ? WHERE idproductocrm = ?";
-                params = [nombreproducto, idcategoriasap, idproductocrm];
+                updateFields.push("idcategoriasap = ?");
+                params.push(idcategoriasap);
             } else if (columnas.includes('idcategoria')) {
-                query = "UPDATE mm_productocrm SET nombreproducto = ?, idcategoria = ? WHERE idproductocrm = ?";
-                params = [nombreproducto, idcategoriasap, idproductocrm];
+                updateFields.push("idcategoria = ?");
+                params.push(idcategoriasap);
             }
 
+            if (columnas.includes('usuario_actualizacion')) {
+                updateFields.push("usuario_actualizacion = ?");
+                params.push(usuario_actualizacion);
+            }
+            if (columnas.includes('fecha_actualizacion')) {
+                updateFields.push("fecha_actualizacion = NOW()");
+            }
+            if (columnas.includes('motivo_actualizacion')) {
+                updateFields.push("motivo_actualizacion = ?");
+                params.push(motivo_actualizacion);
+            }
+
+            params.push(idproductocrm);
+            const query = `UPDATE mm_productocrm SET ${updateFields.join(', ')} WHERE idproductocrm = ?`;
+
+            console.log("⚡ [MYSQL] Ejecutando UPDATE mm_productocrm con parámetros:", params);
             dbConnMySQL.query(query, params, (err, res) => {
                 if (err) {
                     console.error("❌ [MYSQL] Error al actualizar producto CRM:", err);
@@ -2499,6 +2625,211 @@ muestras.eliminarproveedorcrm = function (datos, result) {
         });
     } catch (error) {
         console.error("Error en eliminarproveedorcrm:", error);
+        result(error, null);
+    }
+};
+
+// Obtener detalle completo de un producto CRM con sus lotes, proveedores, fechas y stock
+muestras.obtenerDetalleProductoCRM = async function (idproductocrm, result) {
+    try {
+        const idProd = Number(idproductocrm);
+        if (!idProd) {
+            return result(new Error("ID de producto CRM inválido"), null);
+        }
+
+        const listaproveedoressap = await listarproveedoressap().catch(() => []);
+
+        // 1. Obtener datos del producto
+        const queryProducto = `
+            SELECT 
+                p.idproductocrm,
+                p.nombreproducto,
+                COALESCE((
+                    SELECT GROUP_CONCAT(DISTINCT m.ciudad SEPARATOR ', ')
+                    FROM mm_muestra m
+                    WHERE m.idproductocrm = p.idproductocrm AND m.ciudad IS NOT NULL AND m.ciudad != ''
+                ), 'Sin bodega') AS bodega,
+                (
+                    COALESCE((
+                        SELECT SUM(os.cantidad)
+                        FROM mm_lotemuestra lm
+                        INNER JOIN mm_operacionstock os ON lm.idmm_lotemuestra = os.idingresolotemuestra
+                        WHERE lm.idproductocrm = p.idproductocrm AND lm.ciudadarribo = 'UIO' AND os.idtipooperacionstock = 1
+                    ), 0)
+                    -
+                    COALESCE((
+                        SELECT SUM(os.cantidad)
+                        FROM mm_solicitudmuestra sm
+                        INNER JOIN mm_operacionstock os ON sm.idmm_solicitudmuestra = os.idsolicitudmuestra
+                        WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'UIO' AND os.idtipooperacionstock IN (2, 3)
+                    ), 0)
+                ) AS stock_uio,
+                (
+                    COALESCE((
+                        SELECT SUM(os.cantidad)
+                        FROM mm_lotemuestra lm
+                        INNER JOIN mm_operacionstock os ON lm.idmm_lotemuestra = os.idingresolotemuestra
+                        WHERE lm.idproductocrm = p.idproductocrm AND lm.ciudadarribo = 'GYE' AND os.idtipooperacionstock = 1
+                    ), 0)
+                    -
+                    COALESCE((
+                        SELECT SUM(os.cantidad)
+                        FROM mm_solicitudmuestra sm
+                        INNER JOIN mm_operacionstock os ON sm.idmm_solicitudmuestra = os.idsolicitudmuestra
+                        WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'GYE' AND os.idtipooperacionstock IN (2, 3)
+                    ), 0)
+                ) AS stock_gye,
+                (SELECT COUNT(*) FROM mm_muestra m WHERE m.idproductocrm = p.idproductocrm) AS total_muestras
+            FROM mm_productocrm p
+            WHERE p.idproductocrm = ?
+        `;
+
+        dbConnMySQL.query(queryProducto, [idProd], (errProd, resProd) => {
+            if (errProd) {
+                console.error("❌ [MYSQL] Error consultando producto CRM:", errProd);
+                return result(errProd, null);
+            }
+
+            if (!resProd || resProd.length === 0) {
+                return result(null, { respuesta: false, message: "Producto no encontrado" });
+            }
+
+            const producto = JSON.parse(JSON.stringify(resProd[0]));
+
+            // 2. Obtener lotes ubicados
+            const queryLotes = `
+                SELECT 
+                    lm.idmm_lotemuestra,
+                    lm.idmm_muestra,
+                    lm.lote,
+                    lm.fechaelaboracion,
+                    lm.fechavencimiento,
+                    lm.idtipoempaque,
+                    COALESCE(e.nombre, 'Sin empaque') AS empaque,
+                    lm.idubicacion,
+                    COALESCE(ub.nombre, 'Sin ubicación') AS ubicacion,
+                    lm.ciudadarribo,
+                    lm.cantidadrecibida,
+                    lm.fechaubicacionmuestra,
+                    lm.comentario,
+                    lm.responsableingreso,
+                    lm.idproveedorsap,
+                    lm.idproveedorcrm,
+                    prov_crm.nombre AS nombre_proveedor_crm,
+                    'UBICADO' AS estado,
+                    (
+                        COALESCE(lm.cantidadrecibida, 0)
+                        -
+                        COALESCE((
+                            SELECT SUM(os.cantidad)
+                            FROM mm_operacionstock os
+                            WHERE (os.idingresolotemuestra = lm.idmm_lotemuestra OR os.lote = lm.lote)
+                              AND os.idtipooperacionstock IN (2, 3)
+                        ), 0)
+                    ) AS stock_actual
+                FROM mm_lotemuestra lm
+                LEFT JOIN mm_empaques e ON lm.idtipoempaque = e.idmm_empaques
+                LEFT JOIN mm_ubicacionesbodega ub ON lm.idubicacion = ub.idmm_ubicacionesbodega
+                LEFT JOIN mm_proveedor prov_crm ON lm.idproveedorcrm = prov_crm.idmm_proveedor
+                WHERE lm.idproductocrm = ?
+                ORDER BY lm.idmm_lotemuestra DESC
+            `;
+
+            dbConnMySQL.query(queryLotes, [idProd], (errLotes, resLotes) => {
+                if (errLotes) {
+                    console.error("❌ [MYSQL] Error consultando lotes de producto CRM:", errLotes);
+                    return result(errLotes, null);
+                }
+
+                const lotesUbicados = JSON.parse(JSON.stringify(resLotes || []));
+
+                // 3. Obtener muestras pendientes de ubicación
+                const queryPendientes = `
+                    SELECT 
+                        m.idmm_muestra,
+                        m.fechahoraingreso,
+                        m.cantidad,
+                        m.nombrereferencial,
+                        m.ciudad,
+                        m.iscomplete,
+                        m.responsableingreso,
+                        m.idproveedorsap,
+                        m.idproveedorcrm,
+                        prov_crm.nombre AS nombre_proveedor_crm
+                    FROM mm_muestra m
+                    LEFT JOIN mm_proveedor prov_crm ON m.idproveedorcrm = prov_crm.idmm_proveedor
+                    WHERE m.idproductocrm = ? AND (m.iscomplete = 0 OR m.iscomplete IS NULL)
+                    ORDER BY m.idmm_muestra DESC
+                `;
+
+                dbConnMySQL.query(queryPendientes, [idProd], (errPend, resPend) => {
+                    if (errPend) {
+                        console.error("❌ [MYSQL] Error consultando muestras pendientes:", errPend);
+                    }
+
+                    const muestrasPendientes = (!errPend && resPend) ? JSON.parse(JSON.stringify(resPend)) : [];
+
+                    // Mapear muestras pendientes a formato de lote limpio
+                    const pendientesMapeadas = muestrasPendientes.map(m => ({
+                        idmm_lotemuestra: null,
+                        idmm_muestra: m.idmm_muestra,
+                        lote: '',
+                        fechaelaboracion: null,
+                        fechavencimiento: null,
+                        idtipoempaque: null,
+                        empaque: '',
+                        idubicacion: null,
+                        ubicacion: '',
+                        ciudadarribo: m.ciudad || '',
+                        cantidadrecibida: m.cantidad,
+                        stock_actual: m.cantidad,
+                        fechaubicacionmuestra: m.fechahoraingreso,
+                        comentario: '',
+                        responsableingreso: m.responsableingreso || '',
+                        idproveedorsap: m.idproveedorsap,
+                        idproveedorcrm: m.idproveedorcrm,
+                        nombre_proveedor_crm: m.nombre_proveedor_crm,
+                        estado: 'PENDIENTE'
+                    }));
+
+                    // Unir todos los registros (lotes ubicados + pendientes)
+                    const todosLosRegistros = [...pendientesMapeadas, ...lotesUbicados];
+
+                    // Resolver nombres de proveedores (SAP vs CRM)
+                    todosLosRegistros.forEach(r => {
+                        if (r.idproveedorsap != null && String(r.idproveedorsap).trim() !== '') {
+                            const provSap = listaproveedoressap.find(p => String(p.codigo) === String(r.idproveedorsap));
+                            r.proveedor = provSap ? provSap.nombre : `SAP: ${r.idproveedorsap}`;
+                            r.origen_proveedor = 'SAP';
+                            r.codigo_proveedor = r.idproveedorsap;
+                        } else if (r.idproveedorcrm != null) {
+                            r.proveedor = r.nombre_proveedor_crm || `CRM-${r.idproveedorcrm}`;
+                            r.origen_proveedor = 'CRM';
+                            r.codigo_proveedor = r.idproveedorcrm;
+                        } else {
+                            r.proveedor = 'Sin proveedor';
+                            r.origen_proveedor = 'N/A';
+                            r.codigo_proveedor = null;
+                        }
+
+                        // Asegurar stock_actual no sea negativo
+                        if (r.stock_actual < 0) {
+                            r.stock_actual = 0;
+                        }
+                    });
+
+                    return result(null, {
+                        respuesta: true,
+                        producto: producto,
+                        lotes: todosLosRegistros,
+                        total_lotes: lotesUbicados.length,
+                        total_pendientes: pendientesMapeadas.length
+                    });
+                });
+            });
+        });
+    } catch (error) {
+        console.error("Error en obtenerDetalleProductoCRM:", error);
         result(error, null);
     }
 };
