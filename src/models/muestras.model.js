@@ -2272,6 +2272,39 @@ muestras.listarproductoscrmcompleto = function (result) {
                             WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'GYE' AND os.idtipooperacionstock IN (2, 3)
                         ), 0)
                     ) AS stock_gye,
+                    (
+                        (
+                            COALESCE((
+                                SELECT SUM(os.cantidad)
+                                FROM mm_lotemuestra lm
+                                INNER JOIN mm_operacionstock os ON lm.idmm_lotemuestra = os.idingresolotemuestra
+                                WHERE lm.idproductocrm = p.idproductocrm AND lm.ciudadarribo = 'UIO' AND os.idtipooperacionstock = 1
+                            ), 0)
+                            -
+                            COALESCE((
+                                SELECT SUM(os.cantidad)
+                                FROM mm_solicitudmuestra sm
+                                INNER JOIN mm_operacionstock os ON sm.idmm_solicitudmuestra = os.idsolicitudmuestra
+                                WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'UIO' AND os.idtipooperacionstock IN (2, 3)
+                            ), 0)
+                        )
+                        +
+                        (
+                            COALESCE((
+                                SELECT SUM(os.cantidad)
+                                FROM mm_lotemuestra lm
+                                INNER JOIN mm_operacionstock os ON lm.idmm_lotemuestra = os.idingresolotemuestra
+                                WHERE lm.idproductocrm = p.idproductocrm AND lm.ciudadarribo = 'GYE' AND os.idtipooperacionstock = 1
+                            ), 0)
+                            -
+                            COALESCE((
+                                SELECT SUM(os.cantidad)
+                                FROM mm_solicitudmuestra sm
+                                INNER JOIN mm_operacionstock os ON sm.idmm_solicitudmuestra = os.idsolicitudmuestra
+                                WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'GYE' AND os.idtipooperacionstock IN (2, 3)
+                            ), 0)
+                        )
+                    ) AS stock_total,
                     (SELECT COUNT(*) FROM mm_muestra m WHERE m.idproductocrm = p.idproductocrm) AS total_muestras
                 FROM mm_productocrm p
                 ${whereSQL}
@@ -2294,6 +2327,7 @@ muestras.listarproductoscrmcompleto = function (result) {
                             0 AS peso_muestra,
                             0 AS stock_uio,
                             0 AS stock_gye,
+                            0 AS stock_total,
                             0 AS total_muestras
                         FROM mm_productocrm p
                         ${whereSQL}
