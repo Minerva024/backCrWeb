@@ -53,6 +53,62 @@ crm.loginusuario = async function (credenciales, result) {
     });
 
 }
+
+// Funcion para login con Microsoft Entra ID
+crm.loginentra = async function (tokenEntra, result) {
+    try {
+        if (!tokenEntra) {
+            return result({ error: true, message: 'Token de Microsoft no proporcionado' }, null);
+        }
+
+        // Decodificar token de Microsoft sin validar firma (expedido por Microsoft Entra)
+        const decoded = jwt.decode(tokenEntra);
+        if (!decoded) {
+            return result({ error: true, message: 'Token de Microsoft inválido o no decodificable' }, null);
+        }
+
+        console.log('Token Entra decodificado:', {
+            preferred_username: decoded.preferred_username,
+            upn: decoded.upn,
+            email: decoded.email,
+            unique_name: decoded.unique_name,
+            name: decoded.name
+        });
+
+        // Obtener correo del payload de Microsoft
+        const correo = (decoded.preferred_username || decoded.upn || decoded.email || decoded.unique_name || '').trim().toLowerCase();
+
+        if (!correo) {
+            return result({ error: true, message: 'No se encontró correo electrónico en el token de Microsoft' }, null);
+        }
+
+        // Buscar el usuario en la BD de CRM por correo
+        const query = "SELECT * FROM usuarioscrmweb WHERE LOWER(TRIM(correo)) = ? AND habilitado = 1 LIMIT 1";
+        dbConnMySQL.query(query, [correo], function (err, res) {
+            if (err) {
+                console.error('Error al consultar usuarioscrmweb:', err);
+                return result(err, null);
+            }
+
+            if (!res || res.length === 0) {
+                console.warn(`Usuario con correo ${correo} no encontrado o inhabilitado en usuarioscrmweb`);
+                return result(null, { error: true, message: `Usuario con correo ${correo} no registrado o inactivo en el sistema` });
+            }
+
+            const usuario = res[0];
+            usuario["respuesta"] = 1;
+
+            // Generar token JWT propio del CRM
+            const tokenCRM = jwt.sign({ nombres: usuario.nombres, correo: usuario.correo }, clavejwtbeartoke, { expiresIn: '30m' });
+            usuario["token"] = tokenCRM;
+
+            return result(null, usuario);
+        });
+    } catch (e) {
+        console.error('Excepción en loginentra:', e);
+        return result(e, null);
+    }
+}
 //Obtencion de los valores de los campos de usuario.
 crm.obtenciondatoscreacioncliente = function (result) {
     var queryconsultahana = `SELECT f."AliasID", v."FldValue", v."Descr" FROM "EC_SBO_MINERVA_PRO"."CUFD" f INNER JOIN "EC_SBO_MINERVA_PRO"."UFD1" v ON f."TableID" = v."TableID" AND f."FieldID" = v."FieldID" WHERE f."TableID" = 'OCRD'`;
@@ -839,13 +895,8 @@ async function buscarfactura(auxDocNum) {
         let fechaantes = (moment()).year() + '-01-01';
 
         /*var queryconsultahana = `
-<<<<<<< HEAD
-        SELECT 
-T0."U_FAC_OC", 
-=======
         SELECT
 T0."U_FAC_OC",         
->>>>>>> Modulo-Visitas
 T0."DocEntry",
 T0."DocNum", 
 T0."DocDate",

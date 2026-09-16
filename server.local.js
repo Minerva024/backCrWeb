@@ -10,7 +10,7 @@ app.use(bodyParser.urlencoded({ limit: '500mb', extended: true }));
 app.use(cors({ origin: '*' }));
 
 // Setup server port
-const port = process.env.PORT || 5014;
+const port = process.env.PORT || 9090;
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(express.json({ limit: '250mb' }));

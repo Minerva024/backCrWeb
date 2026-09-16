@@ -14,6 +14,34 @@ exports.loginusuario = function (req, res) {
         });
     }
 }
+
+//Controller para el login con Microsoft Entra ID
+exports.loginentra = function (req, res) {
+    let token = null;
+    if (req.headers.authorization) {
+        const parts = req.headers.authorization.split(' ');
+        if (parts.length === 2 && parts[0] === 'Bearer') {
+            token = parts[1];
+        }
+    }
+    if (!token && req.body && req.body.token) {
+        token = req.body.token;
+    }
+
+    if (!token) {
+        return res.status(400).send({ error: true, message: 'Token de autorización requerido en encabezado Authorization' });
+    }
+
+    Crm.loginentra(token, function (err, respuesta) {
+        if (err) {
+            return res.status(500).send(err);
+        }
+        if (respuesta && respuesta.error) {
+            return res.status(401).send(respuesta);
+        }
+        return res.status(200).send(respuesta);
+    });
+}
 //Controller para proceso almacenado.
 exports.procesoalmacenado = function (req, res) {
     Crm.procesoalmacenado(function (err, respuesta) {

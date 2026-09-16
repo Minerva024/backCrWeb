@@ -188,11 +188,12 @@ function listarproductossap(aux, result) {
             FROM "EC_SBO_MINERVA_PRO".OITM T0
             INNER JOIN "EC_SBO_MINERVA_PRO"."OSTC" T1 on T0."TaxCodeAR"=T1."Code"   
             WHERE T0."validFor" =  'Y' 
-            AND (
+        AND (
         T0."ItmsGrpCod" IN (
             101,112,125,102,126,113,128,
             114,115,129,116,127,123,124
         )
+        AND T0."SellItem"='Y'
         OR T0."ItemCode" IN (
             'MAP002','MAP004','MAP006'
         )

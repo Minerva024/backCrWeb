@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const { clavejwtbeartoke } = require('../../config/configvariables');
 
 router.post('/loginusuario',crmController.loginusuario);
+router.post('/loginentra', crmController.loginentra);
 router.get('/verificartoken',auxverifyToken);
 router.get('/pruebacrm', crmController.procesoalmacenado);
 router.get('/obtenciondatoscreacioncliente', crmController.obtenciondatoscreacioncliente);
