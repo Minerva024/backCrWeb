@@ -6,7 +6,8 @@ const dbConnImpor = mysql.createConnection({
   host     : '192.168.40.25',
   user     : 'root',
   password : '+4dM1n%Pc/',
-  database : 'informebodega'
+  database : 'informebodega',
+  connectTimeout: 20000
 });
 dbConnImpor.connect(function(err) {
   if (err) throw err;

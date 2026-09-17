@@ -7,7 +7,8 @@ const dbConn = mysql.createConnection({
   user     : 'root',
   password : '+4dM1n%Pc/',
   //password: '',
-  database : 'crmmovil'
+  database : 'crmmovil',
+  connectTimeout: 20000
 });
 dbConn.connect(function(err) {
   if (err) throw err;

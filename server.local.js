@@ -14,7 +14,7 @@ const port = process.env.PORT || 9090;
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(express.json({ limit: '250mb' }));
-app.use(express.urlencoded({ limit: '250mb' }));
+app.use(express.urlencoded({ limit: '250mb', extended: true }));
 
 app.get('/', (req, res) => {
     res.send("Backend CRM Local Activo");
