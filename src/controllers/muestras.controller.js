@@ -1060,4 +1060,24 @@ exports.obtenerDetalleProductoCRM = function (req, res) {
         console.error("‚ùå [BACKEND] Error inesperado:", error);
         return res.status(500).json({ error: true, message: error.message || "Error inesperado del servidor" });
     }
+};exports.recibirtransferencia = function (req, res) {
+    try {
+        const aux = req.body;
+        if (!aux || Object.keys(aux).length === 0) {
+            return res.status(400).json({ error: true, message: "El cuerpo de la solicitud est· vacÌo." });
+        }
+        muestras.recibirtransferencia(aux, function (err, respuesta) {
+            if (err) return res.status(500).json({ error: true, message: "Error interno del servidor" });
+            return res.status(200).json({ error: false, data: respuesta });
+        });
+    } catch (error) {
+        return res.status(500).json({ error: true, message: "Error en el servidor" });
+    }
+};
+
+exports.obtenerdetallesolicitud = function (req, res) {
+    muestras.obtenerdetallesolicitud(req.params.id, function (err, data) {
+        if (err) return res.status(500).send(err);
+        res.status(200).send({ data: data });
+    });
 };

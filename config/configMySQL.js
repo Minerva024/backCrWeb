@@ -1,17 +1,28 @@
 'use strict';
 const mysql = require('mysql2');
-//local mysql db connection
-const dbConn = mysql.createConnection({
-  //host     : 'localhost',
+
+// CAMBIA ESTA VARIABLE A 'PROD' PARA PASAR A PRODUCCIÓN
+const AMBIENTE = 'QA'; 
+
+const dbConfig = {
   host     : '192.168.40.25',
   user     : 'root',
   password : '+4dM1n%Pc/',
-  //password: '',
-  database : 'crmmovil',
-  connectTimeout: 20000
+  connectTimeout: 20000,
+  database : AMBIENTE === 'QA' ? 'crmQA' : 'crmmovil',
+  connectionLimit: 40 // Usar pool para optimizar consultas paralelas
+};
+
+const dbConn = mysql.createPool(dbConfig);
+
+// Verificar la conexión del pool
+dbConn.getConnection((err, connection) => {
+  if (err) {
+      console.error('Error connecting to MySQL pool:', err);
+  } else {
+      console.log(`Database Pool Connected to [${dbConfig.database}]!`);
+      connection.release();
+  }
 });
-dbConn.connect(function(err) {
-  if (err) throw err;
-  console.log("Database Connected!");
-});
+
 module.exports = dbConn;

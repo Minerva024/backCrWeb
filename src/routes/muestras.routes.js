@@ -57,6 +57,7 @@ router.post('/eliminarproveedorcrm', muestrasController.eliminarproveedorcrm);
 router.get('/detalleproductocrm/:id', muestrasController.obtenerDetalleProductoCRM); // Detalle completo de producto CRM con lotes y proveedores
 router.post('/detalleproductocrm/:id', muestrasController.obtenerDetalleProductoCRM);
 router.post('/detalleproductocrm', muestrasController.obtenerDetalleProductoCRM);
+router.get('/obtenerdetallesolicitud/:id', muestrasController.obtenerdetallesolicitud);
 module.exports = router;
 // Middleware para verificar el token
 function verifyToken(req, res, next) {

@@ -1063,7 +1063,8 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
 
         let listado = {
             listadopreparacion: [],
-            listadodespachar: []
+            listadodespachar: [],
+            listadotransferidas: []
         };
 
         //Recorro los resultado y voy a gregando las solicitudes de muestras dependiendo de la ciudad y slp code
@@ -1209,17 +1210,34 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
                     item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
                 }
                 item.lotes = await obtenerlotesdespachados(item.idmm_solicitudmuestra, item.bodegadespacho);
-                listado.listadodespachar.push(item);
+                if (item.transferida) {
+                    listado.listadotransferidas.push(item);
+                } else {
+                    listado.listadodespachar.push(item);
+                }
             }
         } else {
             for (let item of listadoestadocinco) {
-                if (item.ciudadsalida == datos.ciudad) {
-                    item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
-                    if (item.idproductocrm == null) {
-                        item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
+                // Si es transferida, la mostramos si la ciudad origen o destino coinciden
+                if (item.transferida) {
+                    if (item.ciudadsalida == datos.ciudad || item.ciudaddestino == datos.ciudad) {
+                        item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
+                        if (item.idproductocrm == null) {
+                            item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
+                        }
+                        item.lotes = await obtenerlotesdespachados(item.idmm_solicitudmuestra, item.bodegadespacho);
+                        listado.listadotransferidas.push(item);
                     }
-                    item.lotes = await obtenerlotesdespachados(item.idmm_solicitudmuestra, item.bodegadespacho);
-                    listado.listadodespachar.push(item);
+                } else {
+                    // Flujo normal, solo ciudad origen
+                    if (item.ciudadsalida == datos.ciudad) {
+                        item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
+                        if (item.idproductocrm == null) {
+                            item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
+                        }
+                        item.lotes = await obtenerlotesdespachados(item.idmm_solicitudmuestra, item.bodegadespacho);
+                        listado.listadodespachar.push(item);
+                    }
                 }
             }
         }
@@ -1328,6 +1346,18 @@ muestras.registrarsalidastock = async function (datos, result) {
             }
         }
         if (ingresado) {
+            if (datos.transferida) {
+                await new Promise((resolve, reject) => {
+                    dbConnMySQL.query(
+                        'UPDATE mm_solicitudmuestra SET transferida = 1, ciudaddestino = ? WHERE idmm_solicitudmuestra = ?',
+                        [datos.ciudaddestino, datos.idmm_solicitudmuestra],
+                        (err, res) => {
+                            if (err) return reject(err);
+                            resolve(res);
+                        }
+                    );
+                });
+            }
             //Debo realizar la consulta del token del dispositivo para realizar el envío de la notificacion.
             const token = await obtenertokendispositivo(datos.slpcode);
             //let bodymess = "Su muestra de: " + datos.nombreproducto + " para el cliente: " + datos.cardname + ", se encuentra preparada y lista para retirar";
@@ -1555,27 +1585,46 @@ muestras.listarmuestrasconestado = async function (datos, result) {
 }
 muestras.listarstockmuestras = async function (aux, result) {
     try {
+        console.time("listarproductossap");
         const productossap = await listarproductossap();
+        console.timeEnd("listarproductossap");
+
+        console.time("obtenerproductosCRM");
         const productoscrm = await obtenerproductosCRM();
-        //Teniendo el listado de productos ahora voy a obtener el stock de los productos.
-        let listadoproductos = [];
-        for (let item of productossap) {
-            item.stock = await stockproductocrm(item.codigo, null);
-            item.lotesuio = await obtenerstockproductoscrm(item.codigo, 'UIO');
-            item.lotesgye = await obtenerstockproductoscrm(item.codigo, 'GYE');
+        console.timeEnd("obtenerproductosCRM");
+
+        // Teniendo el listado de productos ahora voy a obtener el stock de los productos.
+        const batchSize = 20;
+
+        async function procesarEnLotes(productos, esCrm) {
+            console.time(`procesarEnLotes-${esCrm ? 'CRM' : 'SAP'}`);
+            for (let i = 0; i < productos.length; i += batchSize) {
+                const chunk = productos.slice(i, i + batchSize);
+                await Promise.all(chunk.map(async (item) => {
+                    if (esCrm) {
+                        item.stock = await stockproductocrm(null, item.codigo);
+                    } else {
+                        item.stock = await stockproductocrm(item.codigo, null);
+                    }
+                    const [lotesuio, lotesgye] = await Promise.all([
+                        obtenerstockproductoscrm(item.codigo, 'UIO'),
+                        obtenerstockproductoscrm(item.codigo, 'GYE')
+                    ]);
+                    item.lotesuio = lotesuio;
+                    item.lotesgye = lotesgye;
+                }));
+            }
+            console.timeEnd(`procesarEnLotes-${esCrm ? 'CRM' : 'SAP'}`);
         }
-        for (let item of productoscrm) {
-            item.stock = await stockproductocrm(null, item.codigo);
-            //Obtengo los lotes del producto
-            item.lotesuio = await obtenerstockproductoscrm(item.codigo, 'UIO');
-            item.lotesgye = await obtenerstockproductoscrm(item.codigo, 'GYE');
-        }
+
+        await procesarEnLotes(productossap, false);
+        await procesarEnLotes(productoscrm, true);
+
         let datos = [
             ...productossap,
             ...productoscrm
         ]
         result(null, datos);
-        //console.log(productossap[1]);
     } catch (error) {
         console.error("No se ha podido consultar el stock de las muestras:", error);
         result(error, null);
@@ -2870,3 +2919,21 @@ muestras.obtenerDetalleProductoCRM = async function (idproductocrm, result) {
 };
 
 module.exports = muestras;
+muestras.recibirtransferencia = function (datos, result) {
+    dbConnMySQL.query('UPDATE mm_solicitudmuestra SET fecharecibidodestino = NOW(), comentariorecibido = ? WHERE idmm_solicitudmuestra = ?', [datos.comentario, datos.idmm_solicitudmuestra], function(err, res) {
+        if (err) { console.error(err); return result(err, null); }
+        result(null, {isvalid: true, respuesta: "Muestra recibida correctamente."});
+    });
+};
+
+muestras.obtenerdetallesolicitud = function (id, result) {
+    try {
+        const query = 'SELECT transferida, ciudaddestino, fecharecibidodestino, comentariorecibido FROM mm_solicitudmuestra WHERE idmm_solicitudmuestra = ?';
+        dbConnMySQL.query(query, [id], function (err, res) {
+            if (err) return result(err, null);
+            result(null, res);
+        });
+    } catch (error) {
+        result(error, null);
+    }
+};
