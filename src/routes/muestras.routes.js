@@ -21,6 +21,7 @@ router.post('/aprobarrechazarmuestra',muestrasController.aprobacionrechazomuestr
 router.post('/listarmuestrapreparar',muestrasController.listadomuestraspreparar); //Ruta para realizar el listado de las muestras para preparar.
 router.post('/prepararmuestra',muestrasController.prepararmuestra); //Ruta para realizar la preparacion de la muestra.
 router.post('/despacharmuestra',muestrasController.despacharmuestra); //Ruta para realizar el despacho de una muestra.
+router.post('/recibirtransferencia',muestrasController.recibirtransferencia); //Ruta para realizar la recepción de una transferencia.
 router.post('/listarmuestrasconestado',muestrasController.listarmuestrasconestado); //Ruta para listar las muestras con el estado.
 router.get('/obtnerstockmuestras',muestrasController.obtenerlistadostockmuestras); //Ruta para listar las muestras con el estado.
 router.post('/obtenerroadmap',muestrasController.obtenerroadmapsolicitud); //Ruta para listar las muestras con el estado.

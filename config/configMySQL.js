@@ -2,7 +2,7 @@
 const mysql = require('mysql2');
 
 // CAMBIA ESTA VARIABLE A 'PROD' PARA PASAR A PRODUCCIÓN
-const AMBIENTE = 'QA'; 
+const AMBIENTE = 'PROD'; 
 
 const dbConfig = {
   host     : '192.168.40.25',

@@ -193,7 +193,7 @@ function listarproductossap(aux, result) {
             101,112,125,102,126,113,128,
             114,115,129,116,127,123,124
         )
-        AND T0."SellItem"='Y'
+        -- AND T0."SellItem"='Y'
         OR T0."ItemCode" IN (
             'MAP002','MAP004','MAP006'
         )
@@ -1067,14 +1067,20 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
             listadotransferidas: []
         };
 
+        const resolverInfoItem = (item) => {
+            const clienteObj = (listadoclientes || []).find(p => p.CardCode === item.cardcode);
+            item.cardname = clienteObj ? clienteObj.CardName : (item.cardname || item.cardcode || 'Cliente no especificado');
+
+            if (item.idproductocrm == null && item.idproductosap != null) {
+                const prodObj = (productossap || []).find(p => p.codigo === item.idproductosap);
+                item.nombreproducto = prodObj ? prodObj.nombre : (item.nombreproducto || item.idproductosap || 'Producto SAP');
+            }
+        };
+
         //Recorro los resultado y voy a gregando las solicitudes de muestras dependiendo de la ciudad y slp code
         for (let item of listadoestadotres) {
             if (item.ciudadsalida == datos.ciudad) {
-                item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
-                //Busco el nombre del producto si es productosap y asigno los lotes disponibles.
-                if (item.idproductocrm == null) {
-                    item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
-                }
+                resolverInfoItem(item);
                 //Se revisa de que bodega se va a realizar el despacho y de que ciudad
                 if (item.ciudadsalida == 'UIO') {
                     if (item.bodegadespacho == 'SAP') {
@@ -1102,11 +1108,7 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
                 listado.listadopreparacion.push(item);
             }
             if (datos.ciudad == 'TODO') {
-                item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
-                //Busco el nombre del producto si es productosap y asigno los lotes disponibles.
-                if (item.idproductocrm == null) {
-                    item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
-                }
+                resolverInfoItem(item);
                 //Se revisa de que bodega se va a realizar el despacho y de que ciudad
                 if (item.ciudadsalida == 'UIO') {
                     if (item.bodegadespacho == 'SAP') {
@@ -1137,11 +1139,7 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
         //Recorrido de las solicitudes de muestras que se encuentran en el estado de autorizado por fraccionamiento
         for (let item of listadoestadoonce) {
             if (item.ciudadsalida == datos.ciudad) {
-                item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
-                //Busco el nombre del producto si es productosap y asigno los lotes disponibles.
-                if (item.idproductocrm == null) {
-                    item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
-                }
+                resolverInfoItem(item);
                 //Se revisa de que bodega se va a realizar el despacho y de que ciudad
                 if (item.ciudadsalida == 'UIO') {
                     if (item.bodegadespacho == 'SAP') {
@@ -1169,11 +1167,7 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
                 listado.listadopreparacion.push(item);
             }
             if (datos.ciudad == 'TODO') {
-                item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
-                //Busco el nombre del producto si es productosap y asigno los lotes disponibles.
-                if (item.idproductocrm == null) {
-                    item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
-                }
+                resolverInfoItem(item);
                 //Se revisa de que bodega se va a realizar el despacho y de que ciudad
                 if (item.ciudadsalida == 'UIO') {
                     if (item.bodegadespacho == 'SAP') {
@@ -1205,10 +1199,7 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
         //------------------     APARTADO PARA REALIZAR EL LISTADO DE LAS SOLICITUDES DE MUESTRAS LISTAR PARA DESPACHAR --------------------
         if (datos.ciudad == "TODO") {
             for (let item of listadoestadocinco) {
-                item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
-                if (item.idproductocrm == null) {
-                    item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
-                }
+                resolverInfoItem(item);
                 item.lotes = await obtenerlotesdespachados(item.idmm_solicitudmuestra, item.bodegadespacho);
                 if (item.transferida) {
                     listado.listadotransferidas.push(item);
@@ -1221,20 +1212,14 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
                 // Si es transferida, la mostramos si la ciudad origen o destino coinciden
                 if (item.transferida) {
                     if (item.ciudadsalida == datos.ciudad || item.ciudaddestino == datos.ciudad) {
-                        item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
-                        if (item.idproductocrm == null) {
-                            item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
-                        }
+                        resolverInfoItem(item);
                         item.lotes = await obtenerlotesdespachados(item.idmm_solicitudmuestra, item.bodegadespacho);
                         listado.listadotransferidas.push(item);
                     }
                 } else {
                     // Flujo normal, solo ciudad origen
                     if (item.ciudadsalida == datos.ciudad) {
-                        item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
-                        if (item.idproductocrm == null) {
-                            item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
-                        }
+                        resolverInfoItem(item);
                         item.lotes = await obtenerlotesdespachados(item.idmm_solicitudmuestra, item.bodegadespacho);
                         listado.listadodespachar.push(item);
                     }
@@ -1807,13 +1792,21 @@ muestras.actualizarmuestrasfacturacion = async function (auxmuestrasfacturar, re
 
 async function enviarmensajewaha(auxtelefone, message) {
     try {
-        console.log("Voy a enviar la notificacion por whatsapp");
+        if (!auxtelefone || String(auxtelefone).trim() === '' || String(auxtelefone).trim().toLowerCase() === 'null') {
+            console.warn("⚠️ [WAHA] No se envió notificación WhatsApp: El vendedor/usuario no tiene un número de teléfono registrado.");
+            return;
+        }
 
-        const response = await axios.post(
+        const telefonoLimpio = String(auxtelefone).replace(/\D/g, '');
+        if (!telefonoLimpio) return;
+
+        console.log(`📱 [WAHA] Enviando notificación WhatsApp a ${telefonoLimpio}...`);
+
+        await axios.post(
             'http://192.168.40.2:3000/api/sendText',
             {
                 session: 'default',
-                chatId: auxtelefone + '@c.us',
+                chatId: `${telefonoLimpio}@c.us`,
                 text: message
             },
             {
@@ -1822,9 +1815,10 @@ async function enviarmensajewaha(auxtelefone, message) {
                 }
             }
         );
+        console.log("✅ [WAHA] Notificación WhatsApp enviada con éxito.");
     } catch (err) {
-        console.log(err);
-
+        const errorDetalle = err?.response?.data?.error || err?.response?.data || err.message;
+        console.error("⚠️ [WAHA] Error al enviar notificación por WhatsApp:", errorDetalle);
     }
 }
 //Funcion para listar los productos que se deben considerar con conteo por millares.
@@ -2807,7 +2801,7 @@ muestras.obtenerDetalleProductoCRM = async function (idproductocrm, result) {
                         COALESCE((
                             SELECT SUM(os.cantidad)
                             FROM mm_operacionstock os
-                            WHERE (os.idingresolotemuestra = lm.idmm_lotemuestra OR os.lote = lm.lote)
+                            WHERE os.idingresolotemuestra = lm.idmm_lotemuestra
                               AND os.idtipooperacionstock IN (2, 3)
                         ), 0)
                     ) AS stock_actual
@@ -2919,16 +2913,38 @@ muestras.obtenerDetalleProductoCRM = async function (idproductocrm, result) {
 };
 
 module.exports = muestras;
+
+/**
+ * Registra la recepción de una muestra transferida en la bodega de destino (UIO/GYE).
+ * Actualiza la fecha de llegada y el comentario de recepción en `mm_solicitudmuestra`
+ * sin alterar indebidamente el estado global del pedido de la muestra.
+ * 
+ * @param {Object} datos Contiene `idmm_solicitudmuestra` y `comentario` de recepción
+ * @param {Function} result Callback para retorno del resultado
+ */
 muestras.recibirtransferencia = function (datos, result) {
-    dbConnMySQL.query('UPDATE mm_solicitudmuestra SET fecharecibidodestino = NOW(), comentariorecibido = ? WHERE idmm_solicitudmuestra = ?', [datos.comentario, datos.idmm_solicitudmuestra], function(err, res) {
-        if (err) { console.error(err); return result(err, null); }
-        result(null, {isvalid: true, respuesta: "Muestra recibida correctamente."});
-    });
+    dbConnMySQL.query(
+        'UPDATE mm_solicitudmuestra SET fecharecibidodestino = NOW(), comentariorecibido = ? WHERE idmm_solicitudmuestra = ?', 
+        [datos.comentario, datos.idmm_solicitudmuestra], 
+        function(err, res) {
+            if (err) { 
+                console.error("❌ Error al registrar recepción de transferencia:", err); 
+                return result(err, null); 
+            }
+            result(null, { isvalid: true, respuesta: "Muestra recibida correctamente." });
+        }
+    );
 };
 
+/**
+ * Consulta la información detallada de transferencia y trazabilidad de una solicitud de muestra por su ID.
+ * 
+ * @param {number|string} id Identificador único de la solicitud de muestra
+ * @param {Function} result Callback para retorno de datos
+ */
 muestras.obtenerdetallesolicitud = function (id, result) {
     try {
-        const query = 'SELECT transferida, ciudaddestino, fecharecibidodestino, comentariorecibido FROM mm_solicitudmuestra WHERE idmm_solicitudmuestra = ?';
+        const query = 'SELECT transferida, ciudaddestino, ciudadsalida, fecharecibidodestino, comentariorecibido FROM mm_solicitudmuestra WHERE idmm_solicitudmuestra = ?';
         dbConnMySQL.query(query, [id], function (err, res) {
             if (err) return result(err, null);
             result(null, res);

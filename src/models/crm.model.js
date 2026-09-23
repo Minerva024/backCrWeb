@@ -99,7 +99,7 @@ crm.loginentra = async function (tokenEntra, result) {
             usuario["respuesta"] = 1;
 
             // Generar token JWT propio del CRM
-            const tokenCRM = jwt.sign({ nombres: usuario.nombres, correo: usuario.correo }, clavejwtbeartoke, { expiresIn: '30m' });
+            const tokenCRM = jwt.sign({ nombres: usuario.nombres, correo: usuario.correo }, clavejwtbeartoke, { expiresIn: '1h' });
             usuario["token"] = tokenCRM;
 
             return result(null, usuario);
