@@ -175,6 +175,15 @@ function obtenerubicacionesbodega(auxciudad) {
     });
 }
 //Funcion para obtener los items de SAP.
+/**
+ * Funcion para obtener los items/productos de SAP HANA.
+ * 📌 GUÍA DE SOPORTE / DIAGNÓSTICO:
+ * Si un producto de SAP no se visualiza en la aplicación (Muestras / Inventario / Aprobaciones), verificar:
+ * 1. T0."validFor" = 'Y' -> El producto debe estar activo en SAP.
+ * 2. T0."ItmsGrpCod" IN (...) -> Debe pertenecer a un grupo de artículos autorizado o ser un ítem especial (MAP002, MAP004, MAP006).
+ * 3. T0."SellItem" = 'Y' -> Debe estar marcado como "Artículo de venta" en SAP.
+ * 4. INNER JOIN OSTC ("TaxCodeAR") -> Debe tener un código de impuesto válido asignado en SAP.
+ */
 function listarproductossap(aux, result) {
     return new Promise((resolve, reject) => {
         const query = `
@@ -193,7 +202,7 @@ function listarproductossap(aux, result) {
             101,112,125,102,126,113,128,
             114,115,129,116,127,123,124
         )
-        -- AND T0."SellItem"='Y'
+        AND T0."SellItem"='Y'
         OR T0."ItemCode" IN (
             'MAP002','MAP004','MAP006'
         )
