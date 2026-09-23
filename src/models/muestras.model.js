@@ -809,7 +809,7 @@ muestras.listarsolicitudesdemuestrasxestado = async function (params, result) {
                     element.nombreproducto = producto.nombre;
                 }
             }
-            element.CardName = listadoclientes.find(p => p.CardCode === element.cardcode).CardName;
+            element.CardName = listadoclientes.find(p => p.CardCode === element.cardcode)?.CardName || element.CardName || 'Sin cliente';
 
         }
         const datos = [
@@ -1538,7 +1538,7 @@ muestras.listarmuestrasconestado = async function (datos, result) {
         const listadovendedores = await listarrepresentanteventas();
         let respuesta = []
         for (let item of listado) {
-            item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
+            item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode)?.CardName || item.cardname || 'Sin cliente';
             if (item.idproductocrm == null) {
 
                 item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap)?.nombre;
@@ -1669,9 +1669,11 @@ muestras.listarmuestrasdespachadasbodega = async function (auxciudad, result) {
         const productossap = await listarproductossap();
 
         for (let item of listado) {
-            item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
+            const cliente = listadoclientes?.find(p => p.CardCode === item.cardcode);
+            item.cardname = cliente?.CardName || item.cardname || 'Sin cliente';
             if (item.idproductocrm == null) {
-                item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
+                const prod = productossap?.find(p => p.codigo === item.idproductosap);
+                item.nombreproducto = item.nombreproducto || prod?.nombre || item.idproductosap || 'Sin nombre de producto';
             }
             item.lotes = await obtenerlotesdespachados(item.idmm_solicitudmuestra, item.bodegadespacho);
             //listado.listadodespachar.push(item);
@@ -1741,13 +1743,15 @@ muestras.listarmuestrasfacturacion = async function (auxdatos, result) {
         const productossap = await listarproductossap();
 
         for (let item of listado) {
-            item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
+            const cliente = listadoclientes?.find(p => p.CardCode === item.cardcode);
+            item.cardname = cliente?.CardName || item.cardname || 'Sin cliente';
             item.isselect = false;
 
             if (item.idproductocrm == null) {
-                item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
-                item.pvpmin = productossap.find(p => p.codigo === item.idproductosap).PVPMIN;
-                item.rate = productossap.find(p => p.codigo === item.idproductosap).Rate;
+                const prod = productossap?.find(p => p.codigo === item.idproductosap);
+                item.nombreproducto = item.nombreproducto || prod?.nombre || item.idproductosap || 'Sin nombre';
+                item.pvpmin = prod?.PVPMIN || 0;
+                item.rate = prod?.Rate || 0;
             }
             item.lotes = await obtenerlotesdespachados(item.idmm_solicitudmuestra, item.bodegadespacho);
             //listado.listadodespachar.push(item);
@@ -1778,16 +1782,16 @@ muestras.actualizarmuestrasfacturacion = async function (auxmuestrasfacturar, re
     try {
         const listado = await listarmuestrasfacturacion(auxdatos);
 
-
-
         for (let item of listado) {
-            item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode).CardName;
+            const cliente = listadoclientes?.find(p => p.CardCode === item.cardcode);
+            item.cardname = cliente?.CardName || item.cardname || 'Sin cliente';
             item.isselect = false;
 
             if (item.idproductocrm == null) {
-                item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap).nombre;
-                item.pvpmin = productossap.find(p => p.codigo === item.idproductosap).PVPMIN;
-                item.rate = productossap.find(p => p.codigo === item.idproductosap).Rate;
+                const prod = productossap?.find(p => p.codigo === item.idproductosap);
+                item.nombreproducto = item.nombreproducto || prod?.nombre || item.idproductosap || 'Sin nombre';
+                item.pvpmin = prod?.PVPMIN || 0;
+                item.rate = prod?.Rate || 0;
             }
             item.lotes = await obtenerlotesdespachados(item.idmm_solicitudmuestra, item.bodegadespacho);
             //listado.listadodespachar.push(item);
