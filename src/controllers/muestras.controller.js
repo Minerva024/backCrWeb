@@ -594,8 +594,7 @@ exports.obtenerlistadostockmuestras = function (req, res) {
 exports.obtenerroadmapsolicitud = function (req, res) {
     try {
         const aux = req.body;
-        console.log(aux);
-        
+                
         //LLamo al metodo del modelo y lo ejecuto.
         muestras.obtenerroadmap(aux.idsolicitudmuestra, function (err, respuesta) {
             if (err) {
@@ -623,8 +622,7 @@ exports.obtenerroadmapsolicitud = function (req, res) {
 exports.listarmuestrasdespachadas = function (req, res) {
     try {
         const aux = req.body;
-        console.log(aux);
-        
+                
         //LLamo al metodo del modelo y lo ejecuto.
         muestras.listarmuestrasdespachadasbodega(aux.ciudad, function (err, respuesta) {
             if (err) {
@@ -652,8 +650,7 @@ exports.listarmuestrasdespachadas = function (req, res) {
 exports.actualizarestadomuestra = function (req, res) {
     try {
         const aux = req.body;
-        console.log(aux);
-        
+                
         //LLamo al metodo del modelo y lo ejecuto.
         muestras.cambiarestadomuestra(aux, function (err, respuesta) {
             if (err) {
@@ -681,8 +678,7 @@ exports.actualizarestadomuestra = function (req, res) {
 exports.listarmuestrasfacturacion = function (req, res) {
     try {
         const aux = req.body;
-        console.log(aux);
-        
+                
         //LLamo al metodo del modelo y lo ejecuto.
         muestras.listarmuestrasfacturacion(aux.ciudad, function (err, respuesta) {
             if (err) {
@@ -710,8 +706,7 @@ exports.listarmuestrasfacturacion = function (req, res) {
 exports.ingresarpedido = function (req, res) {
     try {
         const aux = req.body;
-        console.log(aux);
-        
+                
         //LLamo al metodo del modelo y lo ejecuto.
         muestras.ingresarpedido(aux, function (err, respuesta) {
             if (err) {
@@ -1064,7 +1059,7 @@ exports.obtenerDetalleProductoCRM = function (req, res) {
     try {
         const aux = req.body;
         if (!aux || Object.keys(aux).length === 0) {
-            return res.status(400).json({ error: true, message: "El cuerpo de la solicitud está vacío." });
+            return res.status(400).json({ error: true, message: "El cuerpo de la solicitud estï¿½ vacï¿½o." });
         }
         muestras.recibirtransferencia(aux, function (err, respuesta) {
             if (err) return res.status(500).json({ error: true, message: "Error interno del servidor" });

@@ -1518,6 +1518,21 @@ function listarmuestrasconestado(auxslpcode) {
         );
     });
 }
+function obtenerEstadosHistoricosEntregados() {
+    return new Promise((resolve) => {
+        dbConnMySQL.query(
+            'SELECT DISTINCT idsolicitudmuestra FROM mm_estado_solicitud WHERE idestadosolicitud = 13',
+            (err, res) => {
+                if (err) {
+                    console.warn("Error consultando estados historicos entregados:", err);
+                    return resolve([]);
+                }
+                const ids = res ? res.map(r => r.idsolicitudmuestra) : [];
+                resolve(ids);
+            }
+        );
+    });
+}
 function listarrepresentanteventas() {
     return new Promise((resolve, reject) => {
         dbConnMySQL.query(
@@ -1536,13 +1551,17 @@ muestras.listarmuestrasconestado = async function (datos, result) {
         const productossap = await listarproductossap();
         const productoscrm = await obtenerproductosCRM();
         const listadovendedores = await listarrepresentanteventas();
+        const entregadasHistoricas = await obtenerEstadosHistoricosEntregados();
+        const setEntregadas = new Set(entregadasHistoricas.map(id => Number(id)));
+
         let respuesta = []
         for (let item of listado) {
             item.cardname = listadoclientes.find(p => p.CardCode === item.cardcode)?.CardName || item.cardname || 'Sin cliente';
             if (item.idproductocrm == null) {
-
                 item.nombreproducto = productossap.find(p => p.codigo === item.idproductosap)?.nombre;
             }
+            const idSol = Number(item.idmm_solicitudmuestra || item.idsolicitudmuestra || item.id);
+            item.fueentregada = setEntregadas.has(idSol);
         }
 
         datos = {
@@ -1708,18 +1727,116 @@ function cambiarestadomuestra(auxestado, auxidsolicitud, auxcomentario, auxrespo
 muestras.cambiarestadomuestra = async function (auxdatos, result) {
     try {
         const resp = await cambiarestadomuestra(auxdatos.estado, auxdatos.idsolicitud, auxdatos.comentario, auxdatos.responsable);
-        //console.log(resp);
+
+        // 1. Si es devolución (estado 10, 14 o flag isdevolucion), activar isdevolucion = 1 en mm_estado_solicitud
+        if (auxdatos.isdevolucion == 1 || auxdatos.estado == 10 || auxdatos.estado == 14) {
+            await new Promise((resolve) => {
+                dbConnMySQL.query(
+                    'UPDATE mm_estado_solicitud SET isdevolucion = 1 WHERE idsolicitudmuestra = ? AND idestadosolicitud = ?',
+                    [auxdatos.idsolicitud, auxdatos.estado],
+                    (errUpd) => {
+                        if (errUpd) console.warn("Error actualizando isdevolucion en mm_estado_solicitud:", errUpd);
+                        resolve();
+                    }
+                );
+            });
+        } else if (auxdatos.estado == 9 || auxdatos.isdevolucion === 0) {
+            // Si se revierte la devolución a estado 9, resetear isdevolucion en mm_estado_solicitud para estado 10
+            await new Promise((resolve) => {
+                dbConnMySQL.query(
+                    'UPDATE mm_estado_solicitud SET isdevolucion = 0 WHERE idsolicitudmuestra = ?',
+                    [auxdatos.idsolicitud],
+                    (errUpd) => {
+                        if (errUpd) console.warn("Error reseteando isdevolucion en mm_estado_solicitud:", errUpd);
+                        resolve();
+                    }
+                );
+            });
+        }
+
+        // 2. Si el estado es 14 (REINGRESO A BODEGA), registrar operación de stock de ingreso en mm_operacionstock
+        if (Number(auxdatos.estado) === 14) {
+            const cantReingreso = Number(auxdatos.cantidadrecibida || auxdatos.cantidad || 0);
+            const loteReingreso = auxdatos.lote || '';
+            let idLoteMuestra = auxdatos.idlotemuestra || null;
+
+            // Si no viene idlotemuestra, buscar el idmm_lotemuestra correspondiente en mm_lotemuestra
+            if (!idLoteMuestra && loteReingreso && loteReingreso !== 'Sin Lote') {
+                idLoteMuestra = await new Promise((resolve) => {
+                    dbConnMySQL.query(
+                        'SELECT idmm_lotemuestra FROM mm_lotemuestra WHERE lote = ? ORDER BY idmm_lotemuestra DESC LIMIT 1',
+                        [loteReingreso],
+                        (errFind, rows) => {
+                            if (!errFind && rows && rows.length > 0) {
+                                resolve(rows[0].idmm_lotemuestra);
+                            } else {
+                                resolve(null);
+                            }
+                        }
+                    );
+                });
+            }
+
+            // Actualizar ubicación/empaque/fechas en mm_lotemuestra si se modificaron
+            if (idLoteMuestra && (auxdatos.idubicacion || auxdatos.idpresentacion || auxdatos.fechavencimiento || auxdatos.fechaelaboracion)) {
+                await new Promise((resolve) => {
+                    dbConnMySQL.query(
+                        `UPDATE mm_lotemuestra SET 
+                            idubicacion = COALESCE(?, idubicacion),
+                            idtipoempaque = COALESCE(?, idtipoempaque),
+                            fechavencimiento = COALESCE(?, fechavencimiento),
+                            fechaelaboracion = COALESCE(?, fechaelaboracion)
+                        WHERE idmm_lotemuestra = ?`,
+                        [
+                            auxdatos.idubicacion || null,
+                            auxdatos.idpresentacion || auxdatos.idtipoempaque || null,
+                            auxdatos.fechavencimiento || null,
+                            auxdatos.fechaelaboracion || null,
+                            idLoteMuestra
+                        ],
+                        (errUpdLm) => {
+                            if (errUpdLm) console.warn("Error actualizando datos de lote en mm_lotemuestra:", errUpdLm);
+                            resolve();
+                        }
+                    );
+                });
+            }
+
+            // Insertar registro de ingreso en mm_operacionstock (idtipooperacionstock: 1 = INGRESO)
+            await new Promise((resolve) => {
+                dbConnMySQL.query(
+                    `INSERT INTO mm_operacionstock 
+                    (fecha, responsable, cantidad, idingresolotemuestra, idtipooperacionstock, idsolicitudmuestra, lote) 
+                    VALUES (NOW(), ?, ?, ?, 1, ?, ?)`,
+                    [
+                        auxdatos.responsable,
+                        cantReingreso,
+                        idLoteMuestra,
+                        auxdatos.idsolicitud,
+                        loteReingreso
+                    ],
+                    (errOp, resOp) => {
+                        if (errOp) {
+                            console.error("Error al insertar operacion de reingreso en mm_operacionstock:", errOp);
+                        } else {
+                            console.log("Operacion de reingreso registrada en mm_operacionstock con ID:", resOp?.insertId);
+                        }
+                        resolve();
+                    }
+                );
+            });
+        }
 
         let dat = {
             ingresado: resp[0].respuesta,
             mess: resp[0].mess
-        }
+        };
         result(null, dat);
     } catch (err) {
         console.error("No se ha podido actualizar el estado:", err);
         result(err, null);
     }
-}
+};
 
 function listarmuestrasfacturacion(auxciudad) {
     return new Promise((resolve, reject) => {
@@ -2307,10 +2424,10 @@ muestras.listarproductoscrmcompleto = function (result) {
                         ), 0)
                         -
                         COALESCE((
-                            SELECT SUM(os.cantidad)
+                            SELECT SUM(CASE WHEN os.idtipooperacionstock IN (2, 3) THEN os.cantidad WHEN os.idtipooperacionstock = 1 THEN -os.cantidad ELSE 0 END)
                             FROM mm_solicitudmuestra sm
                             INNER JOIN mm_operacionstock os ON sm.idmm_solicitudmuestra = os.idsolicitudmuestra
-                            WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'UIO' AND os.idtipooperacionstock IN (2, 3)
+                            WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'UIO'
                         ), 0)
                     ) AS stock_uio,
                     (
@@ -2322,10 +2439,10 @@ muestras.listarproductoscrmcompleto = function (result) {
                         ), 0)
                         -
                         COALESCE((
-                            SELECT SUM(os.cantidad)
+                            SELECT SUM(CASE WHEN os.idtipooperacionstock IN (2, 3) THEN os.cantidad WHEN os.idtipooperacionstock = 1 THEN -os.cantidad ELSE 0 END)
                             FROM mm_solicitudmuestra sm
                             INNER JOIN mm_operacionstock os ON sm.idmm_solicitudmuestra = os.idsolicitudmuestra
-                            WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'GYE' AND os.idtipooperacionstock IN (2, 3)
+                            WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'GYE'
                         ), 0)
                     ) AS stock_gye,
                     (
@@ -2338,10 +2455,10 @@ muestras.listarproductoscrmcompleto = function (result) {
                             ), 0)
                             -
                             COALESCE((
-                                SELECT SUM(os.cantidad)
+                                SELECT SUM(CASE WHEN os.idtipooperacionstock IN (2, 3) THEN os.cantidad WHEN os.idtipooperacionstock = 1 THEN -os.cantidad ELSE 0 END)
                                 FROM mm_solicitudmuestra sm
                                 INNER JOIN mm_operacionstock os ON sm.idmm_solicitudmuestra = os.idsolicitudmuestra
-                                WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'UIO' AND os.idtipooperacionstock IN (2, 3)
+                                WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'UIO'
                             ), 0)
                         )
                         +
@@ -2354,10 +2471,10 @@ muestras.listarproductoscrmcompleto = function (result) {
                             ), 0)
                             -
                             COALESCE((
-                                SELECT SUM(os.cantidad)
+                                SELECT SUM(CASE WHEN os.idtipooperacionstock IN (2, 3) THEN os.cantidad WHEN os.idtipooperacionstock = 1 THEN -os.cantidad ELSE 0 END)
                                 FROM mm_solicitudmuestra sm
                                 INNER JOIN mm_operacionstock os ON sm.idmm_solicitudmuestra = os.idsolicitudmuestra
-                                WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'GYE' AND os.idtipooperacionstock IN (2, 3)
+                                WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'GYE'
                             ), 0)
                         )
                     ) AS stock_total,
@@ -2749,10 +2866,10 @@ muestras.obtenerDetalleProductoCRM = async function (idproductocrm, result) {
                     ), 0)
                     -
                     COALESCE((
-                        SELECT SUM(os.cantidad)
+                        SELECT SUM(CASE WHEN os.idtipooperacionstock IN (2, 3) THEN os.cantidad WHEN os.idtipooperacionstock = 1 THEN -os.cantidad ELSE 0 END)
                         FROM mm_solicitudmuestra sm
                         INNER JOIN mm_operacionstock os ON sm.idmm_solicitudmuestra = os.idsolicitudmuestra
-                        WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'UIO' AND os.idtipooperacionstock IN (2, 3)
+                        WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'UIO'
                     ), 0)
                 ) AS stock_uio,
                 (
@@ -2764,10 +2881,10 @@ muestras.obtenerDetalleProductoCRM = async function (idproductocrm, result) {
                     ), 0)
                     -
                     COALESCE((
-                        SELECT SUM(os.cantidad)
+                        SELECT SUM(CASE WHEN os.idtipooperacionstock IN (2, 3) THEN os.cantidad WHEN os.idtipooperacionstock = 1 THEN -os.cantidad ELSE 0 END)
                         FROM mm_solicitudmuestra sm
                         INNER JOIN mm_operacionstock os ON sm.idmm_solicitudmuestra = os.idsolicitudmuestra
-                        WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'GYE' AND os.idtipooperacionstock IN (2, 3)
+                        WHERE sm.idproductocrm = p.idproductocrm AND sm.ciudadsalida = 'GYE'
                     ), 0)
                 ) AS stock_gye,
                 (SELECT COUNT(*) FROM mm_muestra m WHERE m.idproductocrm = p.idproductocrm) AS total_muestras
@@ -2787,46 +2904,84 @@ muestras.obtenerDetalleProductoCRM = async function (idproductocrm, result) {
 
             const producto = JSON.parse(JSON.stringify(resProd[0]));
 
-            // 2. Obtener lotes ubicados
+            // 2. Obtener lotes ubicados con stock real FIFO (despachos menos reingresos)
             const queryLotes = `
+                WITH despachos AS (
+                    SELECT 
+                        sm.ciudadsalida,
+                        sm.idproductocrm,
+                        sm.idproductosap,
+                        os.lote,
+                        (
+                            SUM(CASE WHEN os.idtipooperacionstock IN (2, 3) THEN os.cantidad ELSE 0 END)
+                            -
+                            SUM(CASE WHEN os.idtipooperacionstock = 1 AND os.idsolicitudmuestra IS NOT NULL THEN os.cantidad ELSE 0 END)
+                        ) AS cantidaddespachada
+                    FROM mm_solicitudmuestra sm
+                    INNER JOIN mm_operacionstock os 
+                        ON os.idsolicitudmuestra = sm.idmm_solicitudmuestra
+                    WHERE sm.idproductocrm = ?
+                    GROUP BY sm.ciudadsalida, sm.idproductocrm, sm.idproductosap, os.lote
+                ),
+                lotes_calc AS (
+                    SELECT 
+                        lm.idmm_lotemuestra,
+                        lm.idmm_muestra,
+                        lm.lote,
+                        lm.fechaelaboracion,
+                        lm.fechavencimiento,
+                        lm.idtipoempaque,
+                        COALESCE(e.nombre, 'Sin empaque') AS empaque,
+                        lm.idubicacion,
+                        COALESCE(ub.nombre, 'Sin ubicación') AS ubicacion,
+                        lm.ciudadarribo,
+                        lm.cantidadrecibida,
+                        lm.fechaubicacionmuestra,
+                        lm.comentario,
+                        lm.responsableingreso,
+                        lm.idproveedorsap,
+                        lm.idproveedorcrm,
+                        prov_crm.nombre AS nombre_proveedor_crm,
+                        'UBICADO' AS estado,
+                        SUM(lm.cantidadrecibida) OVER (
+                            PARTITION BY lm.idproductocrm, lm.lote, lm.ciudadarribo 
+                            ORDER BY lm.idmm_lotemuestra 
+                            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                        ) AS running_ingreso,
+                        IFNULL(d.cantidaddespachada, 0) AS cantidaddespachada
+                    FROM mm_lotemuestra lm
+                    LEFT JOIN mm_empaques e ON lm.idtipoempaque = e.idmm_empaques
+                    LEFT JOIN mm_ubicacionesbodega ub ON lm.idubicacion = ub.idmm_ubicacionesbodega
+                    LEFT JOIN mm_proveedor prov_crm ON lm.idproveedorcrm = prov_crm.idmm_proveedor
+                    LEFT JOIN despachos d ON d.lote = lm.lote 
+                      AND d.ciudadsalida = lm.ciudadarribo
+                    WHERE lm.idproductocrm = ?
+                )
                 SELECT 
-                    lm.idmm_lotemuestra,
-                    lm.idmm_muestra,
-                    lm.lote,
-                    lm.fechaelaboracion,
-                    lm.fechavencimiento,
-                    lm.idtipoempaque,
-                    COALESCE(e.nombre, 'Sin empaque') AS empaque,
-                    lm.idubicacion,
-                    COALESCE(ub.nombre, 'Sin ubicación') AS ubicacion,
-                    lm.ciudadarribo,
-                    lm.cantidadrecibida,
-                    lm.fechaubicacionmuestra,
-                    lm.comentario,
-                    lm.responsableingreso,
-                    lm.idproveedorsap,
-                    lm.idproveedorcrm,
-                    prov_crm.nombre AS nombre_proveedor_crm,
-                    'UBICADO' AS estado,
-                    (
-                        COALESCE(lm.cantidadrecibida, 0)
-                        -
-                        COALESCE((
-                            SELECT SUM(os.cantidad)
-                            FROM mm_operacionstock os
-                            WHERE os.idingresolotemuestra = lm.idmm_lotemuestra
-                              AND os.idtipooperacionstock IN (2, 3)
-                        ), 0)
-                    ) AS stock_actual
-                FROM mm_lotemuestra lm
-                LEFT JOIN mm_empaques e ON lm.idtipoempaque = e.idmm_empaques
-                LEFT JOIN mm_ubicacionesbodega ub ON lm.idubicacion = ub.idmm_ubicacionesbodega
-                LEFT JOIN mm_proveedor prov_crm ON lm.idproveedorcrm = prov_crm.idmm_proveedor
-                WHERE lm.idproductocrm = ?
-                ORDER BY lm.idmm_lotemuestra DESC
+                    idmm_lotemuestra,
+                    idmm_muestra,
+                    lote,
+                    fechaelaboracion,
+                    fechavencimiento,
+                    idtipoempaque,
+                    empaque,
+                    idubicacion,
+                    ubicacion,
+                    ciudadarribo,
+                    cantidadrecibida,
+                    fechaubicacionmuestra,
+                    comentario,
+                    responsableingreso,
+                    idproveedorsap,
+                    idproveedorcrm,
+                    nombre_proveedor_crm,
+                    estado,
+                    GREATEST(0, LEAST(cantidadrecibida, running_ingreso - cantidaddespachada)) AS stock_actual
+                FROM lotes_calc
+                ORDER BY idmm_lotemuestra DESC
             `;
 
-            dbConnMySQL.query(queryLotes, [idProd], (errLotes, resLotes) => {
+            dbConnMySQL.query(queryLotes, [idProd, idProd], (errLotes, resLotes) => {
                 if (errLotes) {
                     console.error("❌ [MYSQL] Error consultando lotes de producto CRM:", errLotes);
                     return result(errLotes, null);
