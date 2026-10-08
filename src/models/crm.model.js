@@ -605,66 +605,26 @@ crm.obtenerhistorialcompraproducto = async function (body, result) {
                     }
                     console.log('Conexión cerrada.');
                 });
-                let productoscliente = [];
-                //Reecorro la respuesta obtenida de SAP
-                res.forEach(element => {
-                    // Si es el primer objeto agrego sin restriccion
-                    if (productoscliente.length == 0) {
-                        let auxproducto = {
-                            ItemCode: element["ItemCode"],
-                            Dscription: element["Dscription"],
+                
+                let productosMap = new Map();
+
+                res.forEach(row => {
+                    if (!productosMap.has(row.ItemCode)) {
+                        productosMap.set(row.ItemCode, {
+                            ItemCode: row.ItemCode,
+                            Dscription: row.Dscription,
                             Compras: []
-                            /*Price: element["Price"],
-                            Cantidad: element["CANTIDAD"],
-                            Venta: element["VENTA"],
-                            DocDate: element["DocDate"]*/
-                        }
-                        //Recorro el listado para setear todas fechas y cantidades de las compras realizadas.
-                        res.forEach(element2 => {
-                            if (element2["ItemCode"] == element["ItemCode"]) {
-                                let aux = {
-                                    Fecha: moment(element2["DocDate"]).format('L'),
-                                    Cantidad: parseFloat(element["CANTIDAD"]).toFixed(2),
-                                    Price: parseFloat(element["Price"]).toFixed(2)
-                                }
-                                auxproducto.Compras.push(aux);
-                            }
-                        })
-                        productoscliente.push(auxproducto);
-                    } else {
-                        let existe = false;
-                        //Recorro el listado de producto buscando si ya se ha ingresado el producto
-                        for (let index = 0; index < productoscliente.length; index++) {
-                            if (productoscliente[index]["ItemCode"] == element["ItemCode"]) {
-                                existe = true;
-                            }
-                        }
-                        if (!existe) {
-                            let auxproducto = {
-                                ItemCode: element["ItemCode"],
-                                Dscription: element["Dscription"],
-                                Compras: []
-                                /*Price: element["Price"],
-                                Cantidad: element["CANTIDAD"],
-                                Venta: element["VENTA"],
-                                DocDate: element["DocDate"]*/
-                            }
-                            //Recorro el listado para setear todas fechas y cantidades de las compras realizadas.
-                            res.forEach(element2 => {
-                                if (element2["ItemCode"] == element["ItemCode"]) {
-                                    let aux = {
-                                        Fecha: moment(element2["DocDate"]).format('L'),
-                                        Cantidad: parseInt(element["CANTIDAD"]).toFixed(2),
-                                        Price: parseFloat(element["Price"]).toFixed(2)
-                                    }
-                                    auxproducto.Compras.push(aux);
-                                }
-                            })
-                            productoscliente.push(auxproducto);
-                        }
+                        });
                     }
+
+                    productosMap.get(row.ItemCode).Compras.push({
+                        Fecha: moment(row.DocDate).format('L'),
+                        Cantidad: parseFloat(row.CANTIDAD).toFixed(2),
+                        Price: parseFloat(row.Price).toFixed(2)
+                    });
                 });
 
+                let productoscliente = Array.from(productosMap.values());
                 result(null, productoscliente);
             });
         }
