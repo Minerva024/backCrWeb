@@ -90,6 +90,14 @@ exports.obtenciontipospersonascontactosap = function (req, res) {
         res.json(respuesta);
     })
 }
+//Controller para la obtencion de los horarios de entrega de SAP.
+exports.obtencionhorariosentrega = function (req, res) {
+    Crm.obtencionhorariosentrega(function (err, respuesta) {
+        if (err)
+            res.send(err);
+        res.json(respuesta);
+    })
+}
 //Controller para realizar el registro de un cliente en SAP.
 exports.ingresarclientesap = function (req, res) {
     let auxcliente = req.body;

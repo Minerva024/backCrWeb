@@ -10,13 +10,13 @@ exports.ingresarofertadeventa = async function (ofertaventa, result) {
         cookiesap = await activarservicelayer();
         if (!cookiesap) return null;
     }
-    //Realizo la configuración del header de la solitud a SAP B1.
+    //Realizo la configuraciÃ³n del header de la solitud a SAP B1.
     const config = {
         headers: { Cookie: cookiesap.join('; ') },
         withCredentials: true,
     }
     console.log(cookiesap);
-    //Realizo la petición con un try y catch.
+    //Realizo la peticiÃ³n con un try y catch.
     try {
         const response = await axios.post(urlbase + "Quotations", ofertaventa, config);
        // console.log(response);
@@ -25,9 +25,9 @@ exports.ingresarofertadeventa = async function (ofertaventa, result) {
 	//Fin de la linea RM
         return response.status == 201;
     } catch (error) {
-        // Si la sesión está expirada, intentamos renovar la cookie
+        // Si la sesiÃ³n estÃ¡ expirada, intentamos renovar la cookie
         if (error.response && error.response.status === 401) {
-            console.warn("Sesión caducada. Reintentando login...");
+            console.warn("SesiÃ³n caducada. Reintentando login...");
             cookiesap = await activarservicelayer();
 
             if (!cookiesap) return null;
@@ -42,7 +42,7 @@ exports.ingresarofertadeventa = async function (ofertaventa, result) {
                // console.log(response);
 		// Ageragdo por RM
 		console.log("[SAP] Reintento exitoso. Status:", retryResponse.status);
-		//Fin de l�nea RM
+		//Fin de línea RM
                 return retryResponse.status === 201;
             } catch (retryError) {
                // console.error("Error al reintentar obtener cliente:", retryError.message);
@@ -164,19 +164,19 @@ exports.registrarcliente = async function (auxcliente, result) {
         cookiesap = await activarservicelayer();
         if (!cookiesap) return null;
     }
-    //Realizo la configuración del header de la solitud a SAP B1.
+    //Realizo la configuraciÃ³n del header de la solitud a SAP B1.
     const config = {
         headers: { Cookie: cookiesap.join('; ') },
         withCredentials: true,
     }
-    //Realizo la petición con un try y catch.
+    //Realizo la peticiÃ³n con un try y catch.
     try {
         const response = await axios.post(urlbase + "BusinessPartners", auxcliente, config);
         return response.status === 201;
     } catch (error) {
-        // Si la sesión está expirada, intentamos renovar la cookie
+        // Si la sesiÃ³n estÃ¡ expirada, intentamos renovar la cookie
         if (error.response && error.response.status === 401) {
-            console.warn("Sesión caducada. Reintentando login...");
+            console.warn("SesiÃ³n caducada. Reintentando login...");
             cookiesap = await activarservicelayer();
 
             if (!cookiesap) return null;
@@ -260,20 +260,20 @@ exports.actualizarclientedocumentacion = async function (auxcliente, result) {
         cookiesap = await activarservicelayer();
         if (!cookiesap) return null;
     }
-    //Realizo la configuración del header de la solitud a SAP B1.
+    //Realizo la configuraciÃ³n del header de la solitud a SAP B1.
     const config = {
         headers: { Cookie: cookiesap.join('; ') },
         withCredentials: true,
     }
     console.log(cookiesap);
-    //Realizo la petición con un try y catch.
+    //Realizo la peticiÃ³n con un try y catch.
     try {
         const response = await axios.patch(urlbase + "BusinessPartners('" + auxcliente.CardCode + "')", body, config);
         return response.status === 201;
     } catch (error) {
-        // Si la sesión está expirada, intentamos renovar la cookie
+        // Si la sesiÃ³n estÃ¡ expirada, intentamos renovar la cookie
         if (error.response && error.response.status === 401) {
-            console.warn("Sesión caducada. Reintentando login...");
+            console.warn("SesiÃ³n caducada. Reintentando login...");
             cookiesap = await activarservicelayer();
 
             if (!cookiesap) return null;
@@ -305,19 +305,19 @@ exports.obtenerclientesap = async function (auxcardcode, params) {
         cookiesap = await activarservicelayer();
         if (!cookiesap) return null;
     }
-    //Realizo la configuración del header de la solitud a SAP B1.
+    //Realizo la configuraciÃ³n del header de la solitud a SAP B1.
     const config = {
         headers: { Cookie: cookiesap.join('; ') },
         withCredentials: true,
     }
-    //Realizo la petición con un try y catch.
+    //Realizo la peticiÃ³n con un try y catch.
     try {
         const response = await axios.get(urlbase + "BusinessPartners('" + auxcardcode + "')", config);
         return response.data;
     } catch (error) {
-        // Si la sesión está expirada, intentamos renovar la cookie
+        // Si la sesiÃ³n estÃ¡ expirada, intentamos renovar la cookie
         if (error.response && error.response.status === 401) {
-            console.warn("Sesión caducada. Reintentando login...");
+            console.warn("SesiÃ³n caducada. Reintentando login...");
             cookiesap = await activarservicelayer();
 
             if (!cookiesap) return null;
@@ -340,7 +340,7 @@ exports.obtenerclientesap = async function (auxcardcode, params) {
         }
     }
 }
-//Funcion para realizar la actualización de un cliente o un lead.
+//Funcion para realizar la actualizaciÃ³n de un cliente o un lead.
 exports.actualizarcliente = async function (auxcliente, result) {
     let auxingresado = false;
     console.log(auxcliente);
@@ -350,21 +350,21 @@ exports.actualizarcliente = async function (auxcliente, result) {
         cookiesap = await activarservicelayer();
         if (!cookiesap) return null;
     }
-    //Realizo la configuración del header de la solitud a SAP B1.
+    //Realizo la configuraciÃ³n del header de la solitud a SAP B1.
     const config = {
         headers: { Cookie: cookiesap.join('; ') },
         withCredentials: true,
     }
-    //Realizo la petición con un try y catch.
+    //Realizo la peticiÃ³n con un try y catch.
     try {
         const response = await axios.patch(urlbase + "BusinessPartners('"+auxcliente.CardCode+"')", auxcliente, config);
         console.log(response);
         
         return response.status === 204;
     } catch (error) {
-        // Si la sesión está expirada, intentamos renovar la cookie
+        // Si la sesiÃ³n estÃ¡ expirada, intentamos renovar la cookie
         if (error.response && error.response.status === 401) {
-            console.warn("Sesión caducada. Reintentando login...");
+            console.warn("SesiÃ³n caducada. Reintentando login...");
             cookiesap = await activarservicelayer();
 
             if (!cookiesap) return null;
@@ -396,21 +396,21 @@ exports.obtenerordendecompra = async function (auxiddocumento, result) {
         cookiesap = await activarservicelayer();
         if (!cookiesap) return null;
     }
-    //Realizo la configuración del header de la solitud a SAP B1.
+    //Realizo la configuraciÃ³n del header de la solitud a SAP B1.
     const config = {
         headers: { Cookie: cookiesap.join('; ') },
         withCredentials: true,
     }
-    //Realizo la petición con un try y catch.
+    //Realizo la peticiÃ³n con un try y catch.
     try {
         const response = await axios.get(urlbase + "Orders("+auxiddocumento+")", config);
         //console.log(response);
         
         return response.data;
     } catch (error) {
-        // Si la sesión está expirada, intentamos renovar la cookie
+        // Si la sesiÃ³n estÃ¡ expirada, intentamos renovar la cookie
         if (error.response && error.response.status === 401) {
-            console.warn("Sesión caducada. Reintentando login...");
+            console.warn("SesiÃ³n caducada. Reintentando login...");
             cookiesap = await activarservicelayer();
 
             if (!cookiesap) return null;
@@ -441,21 +441,21 @@ exports.ingresarordendecompra = async function (auxorden, result) {
         cookiesap = await activarservicelayer();
         if (!cookiesap) return null;
     }
-    //Realizo la configuración del header de la solitud a SAP B1.
+    //Realizo la configuraciÃ³n del header de la solitud a SAP B1.
     const config = {
         headers: { Cookie: cookiesap.join('; ') },
         withCredentials: true,
     }
-    //Realizo la petición con un try y catch.
+    //Realizo la peticiÃ³n con un try y catch.
     try {
         const response = await axios.post(urlbase + "Orders",auxorden, config);
         console.log(response);
         
         return response.status;
     } catch (error) {
-        // Si la sesión está expirada, intentamos renovar la cookie
+        // Si la sesiÃ³n estÃ¡ expirada, intentamos renovar la cookie
         if (error.response && error.response.status === 401) {
-            console.warn("Sesión caducada. Reintentando login...");
+            console.warn("SesiÃ³n caducada. Reintentando login...");
             cookiesap = await activarservicelayer();
 
             if (!cookiesap) return null;
@@ -490,21 +490,28 @@ exports.actualizarordendecompra = async function (auxiddocumento,auxorden, resul
         cookiesap = await activarservicelayer();
         if (!cookiesap) return null;
     }
-    //Realizo la configuración del header de la solitud a SAP B1.
+    //Realizo la configuraciÃ³n del header de la solitud a SAP B1.
     const config = {
         headers: { Cookie: cookiesap.join('; ') },
         withCredentials: true,
     }
-    //Realizo la petición con un try y catch.
+
+    const patchPayload = {
+        "DocumentLines": auxorden.DocumentLines
+    };
+    if (auxorden.U_Horario_Entrega) patchPayload.U_Horario_Entrega = auxorden.U_Horario_Entrega;
+    if (auxorden.U_Detalle_Horario) patchPayload.U_Detalle_Horario = auxorden.U_Detalle_Horario;
+
+    //Realizo la peticiÃ³n con un try y catch.
     try {
-        const response = await axios.patch(urlbase + "Orders("+auxiddocumento+")",{"DocumentLines":auxorden.DocumentLines}, config);
+        const response = await axios.patch(urlbase + "Orders(" + auxiddocumento + ")", patchPayload, config);
         //console.log(response);
         
         return response.status;
     } catch (error) {
-        // Si la sesión está expirada, intentamos renovar la cookie
+        // Si la sesiÃ³n estÃ¡ expirada, intentamos renovar la cookie
         if (error.response && error.response.status === 401) {
-            console.warn("Sesión caducada. Reintentando login...");
+            console.warn("SesiÃ³n caducada. Reintentando login...");
             cookiesap = await activarservicelayer();
 
             if (!cookiesap) return null;
@@ -515,7 +522,7 @@ exports.actualizarordendecompra = async function (auxiddocumento,auxorden, resul
             };
             //Realizo la solicitud al Service Layer de SAP nuevamente con la nueva cookie.
             try {
-                const retryResponse = await axios.patch(urlbase + "Orders('"+auxiddocumento+"')",auxorden, config);
+                const retryResponse = await axios.patch(urlbase + "Orders(" + auxiddocumento + ")", patchPayload, retryConfig);
                 return retryResponse.status;
             } catch (retryError) {
                 console.error("Error al reintentar obtener cliente:", retryError.response.data);

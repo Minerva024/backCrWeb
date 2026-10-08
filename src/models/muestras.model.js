@@ -1385,6 +1385,8 @@ async function ingresaractualizarpedido(producto, auxciudad) {
         "CardCode": "C1790038033001",
         "DocDueDate": fechaFin,
         "Series": auxciudad === 'UIO' ? 246 : 247,
+        "U_Horario_Entrega": "H012",
+        "U_Detalle_Horario": "Lun-Vie\n09:00 - 15:00",
         "DocumentLines": [
         ]
     }

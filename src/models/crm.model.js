@@ -367,9 +367,56 @@ crm.obtenciontipopersonascontacto = function (result) {
         }
     });
 }
+//Obtencion de los horarios de entrega de SAP (@VT_HORARIOS)
+crm.obtencionhorariosentrega = function (result) {
+    var queryconsultahana = `SELECT "Code", "U_Dias", "U_Horario_AM", "U_Horario_PM", "U_Activo" FROM "EC_SBO_MINERVA_PRO"."@VT_HORARIOS" WHERE "U_Activo" = 'Y' ORDER BY "Code" ASC`;
+    const conn = hana.createConnection();
+    conn.connect(dbConnHana, function (err) {
+        if (err) {
+            console.log(err);
+            result(err, null);
+        } else {
+            console.log('Conectado a HANA -- Listar horarios entrega sap');
+            conn.exec(queryconsultahana, function (err, res) {
+                if (err) {
+                    result(err, null);
+                    return console.error('Error ejecutando la consulta: ', err.message, err);
+                }
+                conn.disconnect((err) => {
+                    if (err) {
+                        return console.error('Error cerrando la conexión: ', err.message, err);
+                    }
+                    console.log('Conexión cerrada.');
+                });
+                let respuesta = res.map(row => {
+                    let descLines = [];
+                    if (row.U_Dias) descLines.push(row.U_Dias);
+                    if (row.U_Horario_AM && row.U_Horario_AM !== '-') descLines.push(row.U_Horario_AM);
+                    if (row.U_Horario_PM && row.U_Horario_PM !== '-') descLines.push(row.U_Horario_PM);
+                    
+                    let descMultiLine = descLines.join('\n');
+                    let descSingleLine = descLines.join(' ');
+
+                    return {
+                        Valor: row.Code,
+                        Descripcion: descMultiLine,
+                        DescripcionCorta: descSingleLine,
+                        Dias: row.U_Dias,
+                        Horario_AM: row.U_Horario_AM,
+                        Horario_PM: row.U_Horario_PM
+                    };
+                });
+                result(null, respuesta);
+            });
+        }
+    });
+}
 //Realizar el registro de un cliente en SAP
 crm.registrarclientesap = async function (auxcliente, result) {
-
+    if (!auxcliente.U_Horario_Entrega) {
+        auxcliente.U_Horario_Entrega = 'H012';
+        auxcliente.U_Detalle_Horario = "Lun-Vie\n09:00 - 15:00";
+    }
     let aux = await registrarcliente(auxcliente);
     if (aux) {
         result(null, true);
