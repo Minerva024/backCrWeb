@@ -1646,7 +1646,8 @@ crm.obtenerfactura = async function (body, result) {
 
     // Iniciar Puppeteer
     const browser = await puppeteer.launch({
-        executablePath: '/usr/bin/chromium-browser',
+ // Problema con la ruta en permisos deja de funcionar para ver PDF, se instala Chrome en el servidor     
+ // executablePath: '/usr/bin/chromium-browser',
         headless: true,
         args: [
             '--no-sandbox',
@@ -2141,7 +2142,8 @@ crm.generarcotizacionweb = function (auxidcotizacion, result) {
                 // Iniciar Puppeteer
                 //const browser = await puppeteer.launch();
                 const browser = await puppeteer.launch({
-                     executablePath: '/usr/bin/chromium-browser',
+//Error al generar el PDF se omite la siguiente línea, se instala paquetes de Chrome en el servidor
+             //        executablePath: '/usr/bin/chromium-browser',
         		headless: true,
         args: [
             '--no-sandbox',
