@@ -64,7 +64,7 @@ crm.loginentra = async function (tokenEntra, result) {
         // Decodificar token de Microsoft sin validar firma (expedido por Microsoft Entra)
         const decoded = jwt.decode(tokenEntra);
         if (!decoded) {
-            return result({ error: true, message: 'Token de Microsoft inválido o no decodificable' }, null);
+            return result({ error: true, message: 'Token de Microsoft invÃ¡lido o no decodificable' }, null);
         }
 
         console.log('Token Entra decodificado:', {
@@ -79,7 +79,7 @@ crm.loginentra = async function (tokenEntra, result) {
         const correo = (decoded.preferred_username || decoded.upn || decoded.email || decoded.unique_name || '').trim().toLowerCase();
 
         if (!correo) {
-            return result({ error: true, message: 'No se encontró correo electrónico en el token de Microsoft' }, null);
+            return result({ error: true, message: 'No se encontrÃ³ correo electrÃ³nico en el token de Microsoft' }, null);
         }
 
         // Buscar el usuario en la BD de CRM por correo
@@ -105,7 +105,7 @@ crm.loginentra = async function (tokenEntra, result) {
             return result(null, usuario);
         });
     } catch (e) {
-        console.error('Excepción en loginentra:', e);
+        console.error('ExcepciÃ³n en loginentra:', e);
         return result(e, null);
     }
 }
@@ -123,12 +123,12 @@ crm.obtenciondatoscreacioncliente = function (result) {
                     result(err, null);
                     return console.error('Error ejecutando la consulta: ', err.message, err);
                 }
-                // Cerrar la conexión
+                // Cerrar la conexiÃ³n
                 conn.disconnect((err) => {
                     if (err) {
-                        return console.error('Error cerrando la conexión: ', err.message, err);
+                        return console.error('Error cerrando la conexiÃ³n: ', err.message, err);
                     }
-                    console.log('Conexión cerrada.');
+                    console.log('ConexiÃ³n cerrada.');
                 });
                 let respuesta = [];
                 res.forEach(element => {
@@ -197,12 +197,12 @@ crm.obtencionterritorios = function (result) {
                     result(err, null);
                     return console.error('Error ejecutando la consulta: ', err.message, err);
                 }
-                // Cerrar la conexión
+                // Cerrar la conexiÃ³n
                 conn.disconnect((err) => {
                     if (err) {
-                        return console.error('Error cerrando la conexión: ', err.message, err);
+                        return console.error('Error cerrando la conexiÃ³n: ', err.message, err);
                     }
-                    console.log('Conexión cerrada.');
+                    console.log('ConexiÃ³n cerrada.');
                 });
                 let respuesta = [];
 
@@ -303,12 +303,12 @@ crm.obtencionindustriasap = function (result) {
                     result(err, null);
                     return console.error('Error ejecutando la consulta: ', err.message, err);
                 }
-                // Cerrar la conexión
+                // Cerrar la conexiÃ³n
                 conn.disconnect((err) => {
                     if (err) {
-                        return console.error('Error cerrando la conexión: ', err.message, err);
+                        return console.error('Error cerrando la conexiÃ³n: ', err.message, err);
                     }
-                    console.log('Conexión cerrada.');
+                    console.log('ConexiÃ³n cerrada.');
                 });
                 result(null, res);
             });
@@ -329,12 +329,12 @@ crm.obtenciongruposclientes = function (result) {
                     result(err, null);
                     return console.error('Error ejecutando la consulta: ', err.message, err);
                 }
-                // Cerrar la conexión
+                // Cerrar la conexiÃ³n
                 conn.disconnect((err) => {
                     if (err) {
-                        return console.error('Error cerrando la conexión: ', err.message, err);
+                        return console.error('Error cerrando la conexiÃ³n: ', err.message, err);
                     }
-                    console.log('Conexión cerrada.');
+                    console.log('ConexiÃ³n cerrada.');
                 });
                 result(null, res);
             });
@@ -355,12 +355,12 @@ crm.obtenciontipopersonascontacto = function (result) {
                     result(err, null);
                     return console.error('Error ejecutando la consulta: ', err.message, err);
                 }
-                // Cerrar la conexión
+                // Cerrar la conexiÃ³n
                 conn.disconnect((err) => {
                     if (err) {
-                        return console.error('Error cerrando la conexión: ', err.message, err);
+                        return console.error('Error cerrando la conexiÃ³n: ', err.message, err);
                     }
-                    console.log('Conexión cerrada.');
+                    console.log('ConexiÃ³n cerrada.');
                 });
                 result(null, res);
             });
@@ -384,18 +384,26 @@ crm.obtencionhorariosentrega = function (result) {
                 }
                 conn.disconnect((err) => {
                     if (err) {
-                        return console.error('Error cerrando la conexión: ', err.message, err);
+                        return console.error('Error cerrando la conexiÃ³n: ', err.message, err);
                     }
-                    console.log('Conexión cerrada.');
+                    console.log('ConexiÃ³n cerrada.');
                 });
                 let respuesta = res.map(row => {
+                    const esValido = (v) => v && v !== '-' && v.toString().trim() !== '' && v.toString().toLowerCase() !== 'null';
+
                     let descLines = [];
                     if (row.U_Dias) descLines.push(row.U_Dias);
-                    if (row.U_Horario_AM && row.U_Horario_AM !== '-') descLines.push(row.U_Horario_AM);
-                    if (row.U_Horario_PM && row.U_Horario_PM !== '-') descLines.push(row.U_Horario_PM);
+                    if (esValido(row.U_Horario_AM)) descLines.push(row.U_Horario_AM.toString().trim());
+                    if (esValido(row.U_Horario_PM)) descLines.push(row.U_Horario_PM.toString().trim());
                     
                     let descMultiLine = descLines.join('\n');
-                    let descSingleLine = descLines.join(' ');
+
+                    let horas = [];
+                    if (esValido(row.U_Horario_AM)) horas.push(row.U_Horario_AM.toString().trim());
+                    if (esValido(row.U_Horario_PM)) horas.push(row.U_Horario_PM.toString().trim());
+
+                    let horasTexto = horas.join(' y ');
+                    let descSingleLine = row.U_Dias ? `${row.U_Dias} ${horasTexto}`.trim() : horasTexto;
 
                     return {
                         Valor: row.Code,
@@ -417,6 +425,9 @@ crm.registrarclientesap = async function (auxcliente, result) {
         auxcliente.U_Horario_Entrega = 'H012';
         auxcliente.U_Detalle_Horario = "Lun-Vie\n09:00 - 15:00";
     }
+    if (!auxcliente.U_Documentacion_Cliente) {
+        auxcliente.U_Documentacion_Cliente = '01';
+    }
     let aux = await registrarcliente(auxcliente);
     if (aux) {
         result(null, true);
@@ -426,6 +437,9 @@ crm.registrarclientesap = async function (auxcliente, result) {
 }
 //Realizar la actualizacion de un cliente en SAP
 crm.actualizarclientesap = async function (auxcliente, result) {
+    if (auxcliente.U_Documentacion_Cliente === "") {
+        auxcliente.U_Documentacion_Cliente = null;
+    }
     let aux = await actualizarcliente(auxcliente);
     //console.log(aux);
 
@@ -459,7 +473,7 @@ crm.registrardocumentacion = async function (aux, result) {
         }
     });
 }
-//Listar los clientes con documentación para el analisis de cartera.
+//Listar los clientes con documentaciÃ³n para el analisis de cartera.
 // Listar los clientes de cada vendedor.
 crm.listarclientescondocumentacion = function (aux, result) {
     var queryconsultahana = '';
@@ -481,12 +495,12 @@ crm.listarclientescondocumentacion = function (aux, result) {
                     result(err, null);
                     return console.error('Error ejecutando la consulta: ', err.message, err);
                 }
-                // Cerrar la conexión
+                // Cerrar la conexiÃ³n
                 conn.disconnect((err) => {
                     if (err) {
-                        return console.error('Error cerrando la conexión: ', err.message, err);
+                        return console.error('Error cerrando la conexiÃ³n: ', err.message, err);
                     }
-                    console.log('Conexión cerrada.');
+                    console.log('ConexiÃ³n cerrada.');
                 });
                 result(null, res);
             });
@@ -598,12 +612,12 @@ crm.obtenerhistorialcompraproducto = async function (body, result) {
                     result(err, null);
                     return console.error('Error ejecutando la consulta: ', err.message, err);
                 }
-                // Cerrar la conexión
+                // Cerrar la conexiÃ³n
                 conn.disconnect((err) => {
                     if (err) {
-                        return console.error('Error cerrando la conexión: ', err.message, err);
+                        return console.error('Error cerrando la conexiÃ³n: ', err.message, err);
                     }
-                    console.log('Conexión cerrada.');
+                    console.log('ConexiÃ³n cerrada.');
                 });
                 
                 let productosMap = new Map();
@@ -678,9 +692,9 @@ crm.obtenerventasypresupuestos = async function (aux, result) {
                         }
                         conn.disconnect((err) => {
                             if (err) {
-                                return console.error('Error cerrando la conexión: ', err.message, err);
+                                return console.error('Error cerrando la conexiÃ³n: ', err.message, err);
                             }
-                            console.log('Conexión cerrada.');
+                            console.log('ConexiÃ³n cerrada.');
                         });
                         //Aqui ya tengo la respuesta de SAP debo ir creando los objetos con las ventas y presupuestos.
                         //Recorro la respuesta del presupuesto de cada uno de los vendedores [{idVendedor: slpcode, monto: vpresupuesto}]
@@ -738,9 +752,9 @@ crm.obtenerventasypresupuestos = async function (aux, result) {
                         }
                         conn.disconnect((err) => {
                             if (err) {
-                                return console.error('Error cerrando la conexión: ', err.message, err);
+                                return console.error('Error cerrando la conexiÃ³n: ', err.message, err);
                             }
-                            console.log('Conexión cerrada.');
+                            console.log('ConexiÃ³n cerrada.');
                         });
                         //Aqui ya tengo la respuesta de SAP debo ir creando los objetos con las ventas y presupuestos.
                         //Recorro la respuesta del presupuesto de cada uno de los vendedores [{idVendedor: slpcode, monto: vpresupuesto}]
@@ -773,15 +787,15 @@ crm.obtenerventasypresupuestos = async function (aux, result) {
     });*/
 }
 
-// Función para generar código de barras como imagen Base64
+// FunciÃ³n para generar cÃ³digo de barras como imagen Base64
 async function generateBarcode(auxtext) {
     return new Promise((resolve, reject) => {
         bwipjs.toBuffer({
-            bcid: 'code128',       // Tipo de código de barras (Code 128)
-            text: auxtext,  // Texto del código de barras
-            scale: 3,              // Escala del código de barras
+            bcid: 'code128',       // Tipo de cÃ³digo de barras (Code 128)
+            text: auxtext,  // Texto del cÃ³digo de barras
+            scale: 3,              // Escala del cÃ³digo de barras
             height: 10,            // Altura en mm
-            includetext: false,     // Incluir texto debajo del código de barras
+            includetext: false,     // Incluir texto debajo del cÃ³digo de barras
             textxalign: 'center',  // Alinear texto
         }, (err, png) => {
             if (err) {
@@ -793,7 +807,7 @@ async function generateBarcode(auxtext) {
         });
     });
 }
-// Función para buscar las facturas segun el DocNum de SAP
+// FunciÃ³n para buscar las facturas segun el DocNum de SAP
 /*async function buscarfactura(auxDocNum) {
     let fechaactual = (moment().format()).substring(0, (moment().format()).indexOf('T'));
     let fechaantes = (moment()).year() + '-01-01';
@@ -835,12 +849,12 @@ ORDER BY T0.\"DocDate\" desc`;
                     result(err, null);
                     return console.error('Error ejecutando la consulta: ', err.message, err);
                 }
-                // Cerrar la conexión
+                // Cerrar la conexiÃ³n
                 conn.disconnect((err) => {
                     if (err) {
-                        return console.error('Error cerrando la conexión: ', err.message, err);
+                        return console.error('Error cerrando la conexiÃ³n: ', err.message, err);
                     }
-                    console.log('Conexión cerrada.');
+                    console.log('ConexiÃ³n cerrada.');
                 });
                 //let facturasclientes = [];
                 //console.log(res);
@@ -891,7 +905,7 @@ ORDER BY T0.\"DocDate\" desc`;
 }*/
 
 function convertirHoraSAP(horaSAP) {
-    let str = horaSAP.toString().padStart(4, '0'); // Asegura 4 dígitos
+    let str = horaSAP.toString().padStart(4, '0'); // Asegura 4 dÃ­gitos
     let horas = str.substring(0, 2);
     let minutos = str.substring(2, 4);
     return `${horas}:${minutos}`;
@@ -1116,14 +1130,14 @@ ORDER BY
                     }
                 }
 
-                // ✅ Resolvemos la promesa con la respuesta
+                // â Resolvemos la promesa con la respuesta
                 resolve(respuesta);
             });
         });
     });
 }
 
-// Función para 
+// FunciÃ³n para 
 crm.obtenerfactura = async function (body, result) {
 
     //console.log(body);
@@ -1272,36 +1286,36 @@ crm.obtenerfactura = async function (body, result) {
                     </table>
                     <table>
                         <tbody>
-                            <!--    Fila para el nombre de Factura Electrónica  -->
+                            <!--    Fila para el nombre de Factura ElectrÃ³nica  -->
                             <tr>
                                 <th style="font-size: medium;">
-                                    FACTURA ELECTRÓNICA
+                                    FACTURA ELECTRÃNICA
                                 </th>
                             </tr>
                         </tbody>
                     </table>
                     <table>
                         <tbody>
-                            <!--    Fila para el número de Factura Electrónica  -->
+                            <!--    Fila para el nÃºmero de Factura ElectrÃ³nica  -->
                             <tr>
-                                <td style="width: 40%;"><b>N°.</b></td>
+                                <td style="width: 40%;"><b>NÂ°.</b></td>
                                 <td>${aux["nfactura"]}</td>
                             </tr>
                         </tbody>
                     </table>
                     <table>
                         <tbody>
-                            <!--    Fila para la etiqueta del número de autorizacion -->
+                            <!--    Fila para la etiqueta del nÃºmero de autorizacion -->
                             <tr>
                                 <th style="font-size: medium;">
-                                    NÚMERO DE AUTORIZACIÓN
+                                    NÃMERO DE AUTORIZACIÃN
                                 </th>
                             </tr>
                         </tbody>
                     </table>
                     <table>
                         <tbody>
-                            <!--    Fila para el número de autorizacion -->
+                            <!--    Fila para el nÃºmero de autorizacion -->
                             <tr>
                                 <td>
                                     ${aux["nautorizacion"]}
@@ -1311,10 +1325,10 @@ crm.obtenerfactura = async function (body, result) {
                     </table>
                     <table>
                         <tbody>
-                            <!--    Fila para LA FECHA Y HORA DE AUTORIZACIÓN -->
+                            <!--    Fila para LA FECHA Y HORA DE AUTORIZACIÃN -->
                             <tr>
                                 <th style="width: 40%;">
-                                    FECHA Y HORA DE AUTORIZACIÓN
+                                    FECHA Y HORA DE AUTORIZACIÃN
                                 </th>
                                 <td style="width: 60%;">${aux["fecha"]} ${aux["hora"]}</td>
                             </tr>
@@ -1327,16 +1341,16 @@ crm.obtenerfactura = async function (body, result) {
                                 <th style="width: 30%;">
                                     AMBIENTE:
                                 </th>
-                                <td style="width: 70%;">Producción</td>
+                                <td style="width: 70%;">ProducciÃ³n</td>
                             </tr>
                         </tbody>
                     </table>
                     <table>
                         <tbody>
-                            <!--    Fila para la emisión -->
+                            <!--    Fila para la emisiÃ³n -->
                             <tr>
                                 <th style="width: 30%;">
-                                    EMISIÓN:
+                                    EMISIÃN:
                                 </th>
                                 <td style="width: 70%;">Normal</td>
                             </tr>
@@ -1357,7 +1371,7 @@ crm.obtenerfactura = async function (body, result) {
                             <!--    Fila para el codigo de barras -->
                             <tr>
                                 <td style="text-align: center;">
-                                    <img src="${barcodeDataUrl}" style="width:70%" alt="Código de Barras"/>
+                                    <img src="${barcodeDataUrl}" style="width:70%" alt="CÃ³digo de Barras"/>
                                 </td>
                             </tr>
                         </tbody>
@@ -1379,7 +1393,7 @@ crm.obtenerfactura = async function (body, result) {
                 <tr>
                     <td>
                         <table>
-                            <th style="width:20%">Razón Social /Nombres y Apellidos:</th>
+                            <th style="width:20%">RazÃ³n Social /Nombres y Apellidos:</th>
                             <td style="width:40%">${aux["razonsocial"]}</td>
                             <th style="width:20%">RUC/CI:</th>
                             <td style="width:20%">${aux["ruc"]}</td>
@@ -1390,9 +1404,9 @@ crm.obtenerfactura = async function (body, result) {
                     <td>
                         <table style="width: 100%;">
                             <tr>
-                                <th style="width:20%">Fecha Emisión:</th>
+                                <th style="width:20%">Fecha EmisiÃ³n:</th>
                                 <td style="width:40%">${aux["fecha"]}</td>
-                                <th style="width:20%">Guía de Remisión:</th>
+                                <th style="width:20%">GuÃ­a de RemisiÃ³n:</th>
                                 <td style="width:20%">${aux["nguia"]}</td>
                             </tr>
                         </table>
@@ -1407,13 +1421,13 @@ crm.obtenerfactura = async function (body, result) {
                 
                     <tr class="tr1">
                         <th class="th1" style="width: 11%; font-size: 10px;">
-                            Cód. Articulo
+                            CÃ³d. Articulo
                         </th>
                         <th class="th1" style="width: 11%; font-size: 10px;">
-                            Cód. Auxiliar
+                            CÃ³d. Auxiliar
                         </th>
                         <th class="th1" style="font-size: 10px;">
-                            Descripción
+                            DescripciÃ³n
                         </th>
                         <th class="th1" style="width: 10%; font-size: 10px;">
                             Cantidad
@@ -1512,19 +1526,19 @@ crm.obtenerfactura = async function (body, result) {
                                     <th class="th1" style="font-size: 10px; width: 30%;">Unidad de Tiempo</th>
                                 </tr>
                                 <tr>
-                                    <td class="td1" style="text-align: left;">OTROS CON UTILIZACIÓN DEL
+                                    <td class="td1" style="text-align: left;">OTROS CON UTILIZACIÃN DEL
                                         SISTEMA FINANCIERO</td>
                                     <td class="td1" style="text-align: right;">$ ${aux["total"]}</td>
                                     <td class="td1"></td>
-                                    <td class="td1" style="text-align: right;">Día</td>
+                                    <td class="td1" style="text-align: right;">DÃ­a</td>
                                 </tr>
                             </table>
                             <br>
-                            <!--  Tabla para la información adicional-->
+                            <!--  Tabla para la informaciÃ³n adicional-->
                             <table class="table1" style="width: 100%; border-bottom: none;">
                                 <tbody>
                                     <tr class="tr1" style="text-align: center;">
-                                        <th class="th1" style="text-align: center;">Información adicional</th>
+                                        <th class="th1" style="text-align: center;">InformaciÃ³n adicional</th>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1569,7 +1583,7 @@ crm.obtenerfactura = async function (body, result) {
                                     </tr>
                                     <tr class="tr1" style="text-align: center;border-bottom: none;">
                                         <th style="text-align: left; width: 40%;">Leyenda</th>
-                                        <td style="text-align: left; width: 60%;">: Si en un plazo de 30 días no se recibe por escrito una solicitud de rectificación o modificación del presente pedido, se entenderá que el mismo está a completa satisfacción del cliente</td>
+                                        <td style="text-align: left; width: 60%;">: Si en un plazo de 30 dÃ­as no se recibe por escrito una solicitud de rectificaciÃ³n o modificaciÃ³n del presente pedido, se entenderÃ¡ que el mismo estÃ¡ a completa satisfacciÃ³n del cliente</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1691,12 +1705,12 @@ crm.obtenerotrospagos = function (auxcardcode, result) {
                     result(err, null);
                     return console.error('Error ejecutando la consulta: ', err.message, err);
                 }
-                // Cerrar la conexión
+                // Cerrar la conexiÃ³n
                 conn.disconnect((err) => {
                     if (err) {
-                        return console.error('Error cerrando la conexión: ', err.message, err);
+                        return console.error('Error cerrando la conexiÃ³n: ', err.message, err);
                     }
-                    console.log('Conexión cerrada.');
+                    console.log('ConexiÃ³n cerrada.');
                 });
                 result(null, res);
             });
@@ -1979,7 +1993,7 @@ crm.listarcotizacionesxclientecrmweb = function (body, result) {
         }
     });
 }
-//Funcion para generar el pdf de una cotización
+//Funcion para generar el pdf de una cotizaciÃ³n
 crm.generarcotizacionweb = function (auxidcotizacion, result) {
     var queryString = "CALL obtenerdatoscotizacion(" + auxidcotizacion + ")";
     dbConnMySQL.query(queryString, async function (err, res) {
@@ -2067,16 +2081,16 @@ crm.generarcotizacionweb = function (auxidcotizacion, result) {
                         <div class="header">
                         <p><b>Matriz Quito</b><br>
                         Vicente Duque N77-325 y Juan de Selis<br>
-                        Teléfonos: (+593) 2600 5636 / (+593) 2247 9329 / (+593) 99 897 1750<br>
+                        TelÃ©fonos: (+593) 2600 5636 / (+593) 2247 9329 / (+593) 99 897 1750<br>
                         Call Center ext 101 -102<br>
-                        Teléfono GYE: (+593) 98 539 0365</p>
+                        TelÃ©fono GYE: (+593) 98 539 0365</p>
                         </div>
                     </td>
                     </tr>
                 </table>
                 
                 <div>
-                <h2 style="text-align: center;">COTIZACIÓN No. `+ respuesta[0][0]['idcotizacion'] + `</h2>
+                <h2 style="text-align: center;">COTIZACIÃN No. `+ respuesta[0][0]['idcotizacion'] + `</h2>
                 </div>
                 <table style="border-style: hidden;">
                 <tr style="border-style: hidden;">
@@ -2084,7 +2098,7 @@ crm.generarcotizacionweb = function (auxidcotizacion, result) {
                     <strong>Fecha del documento:</strong> `+ respuesta[0][0]['fechaingreso'] + `
                     </td>
                     <td style="border-style: hidden;">
-                    <strong>Válido hasta:</strong> `+ (moment(respuesta[0][0]['fechaentrega'], 'DDMMYYYY').format()).substring(0, (moment(respuesta[0][0]['fechaentrega'], 'DDMMYYYY').format()).indexOf('T')) + `
+                    <strong>VÃ¡lido hasta:</strong> `+ (moment(respuesta[0][0]['fechaentrega'], 'DDMMYYYY').format()).substring(0, (moment(respuesta[0][0]['fechaentrega'], 'DDMMYYYY').format()).indexOf('T')) + `
                     </td>
                 </tr>
                 <tr style="border-style: hidden;">
@@ -2100,19 +2114,19 @@ crm.generarcotizacionweb = function (auxidcotizacion, result) {
                     <strong>Persona de Contacto:</strong> DIANA MARQUEZ
                     </td>
                     <td style="border-style: hidden;">
-                    <strong>Teléfono:</strong> 0984448049
+                    <strong>TelÃ©fono:</strong> 0984448049
                     </td>
                 </tr>
                 <tr style="border-style: hidden;">
                     <td style="border-style: hidden;" rowspan="2">
-                    <strong>Correo:</strong> facturación.electronicamarineprotein.com.ec
+                    <strong>Correo:</strong> facturaciÃ³n.electronicamarineprotein.com.ec
                     </td>
                 </tr>-->
                 </table>
                 
                 <table>
                     <tr>
-                    <th>DESCRIPCIÓN</th>
+                    <th>DESCRIPCIÃN</th>
                     <th>CANTIDAD</th>
                     <th>P. UNIT</th>
                     <th>% IVA</th>
@@ -2132,8 +2146,8 @@ crm.generarcotizacionweb = function (auxidcotizacion, result) {
                 <div class="footer">
                     <p><strong>Representante de Ventas: </strong>`+ respuesta[0][0]["nombres"] + " " + respuesta[0][0]["apellidos"] + ` </p>
                     <p><strong>Correo: </strong>`+ respuesta[0][0]["mail"] + `</p>
-                    <p>Esta propuesta tiene validéz de 8 días</p>
-                    <p style="text-align: right;">Cotización generada desde el CRM Móvil.</p>
+                    <p>Esta propuesta tiene validÃ©z de 8 dÃ­as</p>
+                    <p style="text-align: right;">CotizaciÃ³n generada desde el CRM MÃ³vil.</p>
                     <p><b>NOTA:</b> LOS DATOS PERSONALES QUE CONTIENE EL DOCUMENTO SON AUTORIZADOS PARA SU USO POR PARTE DE LOS TITULARES.</p>
                 </div>
 
@@ -2142,7 +2156,7 @@ crm.generarcotizacionweb = function (auxidcotizacion, result) {
                 // Iniciar Puppeteer
                 //const browser = await puppeteer.launch();
                 const browser = await puppeteer.launch({
-//Error al generar el PDF se omite la siguiente l�nea, se instala paquetes de Chrome en el servidor
+//Error al generar el PDF se omite la siguiente línea, se instala paquetes de Chrome en el servidor
              //        executablePath: '/usr/bin/chromium-browser',
         		headless: true,
         args: [
@@ -2252,12 +2266,12 @@ crm.listarleads = function (aux, result) {
                     result(err, null);
                     return console.error('Error ejecutando la consulta: ', err.message, err);
                 }
-                // Cerrar la conexión
+                // Cerrar la conexiÃ³n
                 conn.disconnect((err) => {
                     if (err) {
-                        return console.error('Error cerrando la conexión: ', err.message, err);
+                        return console.error('Error cerrando la conexiÃ³n: ', err.message, err);
                     }
-                    console.log('Conexión cerrada.');
+                    console.log('ConexiÃ³n cerrada.');
                 });
                 result(null, res);
             });
@@ -2335,9 +2349,9 @@ ORDER BY T0."DocDate" DESC
         } finally {
             conn.disconnect((err) => {
                 if (err) {
-                    return console.error('Error cerrando la conexión:', err.message);
+                    return console.error('Error cerrando la conexiÃ³n:', err.message);
                 }
-                console.log('Conexión HANA cerrada.');
+                console.log('ConexiÃ³n HANA cerrada.');
             });
         }
     });
@@ -2396,7 +2410,7 @@ crm.obtenerproductosconlote = function (result) {
     });
 }
 
-//Obtener información para agendar una reunion.
+//Obtener informaciÃ³n para agendar una reunion.
 crm.obtenerinformacionreunion = function (result) {
     try {
         var queryconsultamysql = "CALL informacionparagenerarvisita()";
