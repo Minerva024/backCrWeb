@@ -15,6 +15,7 @@ router.get('/obtencionindustriassap', crmController.obtencionindustriassap);
 router.get('/obtenciongrupossap', crmController.obtenciongrupossap);
 router.get('/obtenciontipospersonascontactosap', crmController.obtenciontipospersonascontactosap);
 router.get('/obtencionhorariosentrega', crmController.obtencionhorariosentrega);
+router.post('/verificarexistenciacliente', crmController.verificarexistenciacliente);
 router.post('/ingresarclientesap', crmController.ingresarclientesap);
 router.post('/registrardocumentacionclientesap', crmController.registrardocumentacionsap);
 router.post('/listarclientessapdocumentacion', crmController.listarclientescondocumentacionsap);

@@ -419,6 +419,56 @@ crm.obtencionhorariosentrega = function (result) {
         }
     });
 }
+//Verificar si el cliente ya existe en SAP HANA y su estado (Activo/Inactivo)
+crm.verificarexistenciaclientehana = function (identificacion, result) {
+    if (!identificacion) {
+        return result(null, { existe: false });
+    }
+    let idLimpia = ('' + identificacion).trim();
+    let cardCode = idLimpia.startsWith('C') ? idLimpia : 'C' + idLimpia;
+
+    var queryconsultahana = `SELECT TOP 1 T0."CardCode", T0."CardName", T0."LicTradNum", T0."validFor", T0."frozenFor", T0."FrozenComm", T0."CardType" FROM "EC_SBO_MINERVA_PRO".OCRD T0 WHERE T0."CardCode" = '${cardCode}' OR T0."LicTradNum" = '${idLimpia}'`;
+
+    const conn = hana.createConnection();
+    conn.connect(dbConnHana, function (err) {
+        if (err) {
+            console.error('Error conectando a HANA para verificar cliente:', err);
+            return result(err, null);
+        }
+        conn.exec(queryconsultahana, function (err, res) {
+            conn.disconnect((errDisc) => {
+                if (errDisc) console.error('Error cerrando conexión HANA:', errDisc);
+            });
+            if (err) {
+                console.error('Error ejecutando consulta de cliente en HANA: ', err.message, err);
+                return result(err, null);
+            }
+            if (!res || res.length === 0) {
+                return result(null, { existe: false });
+            }
+
+            let cliente = res[0];
+            let inactivo = cliente.frozenFor === 'Y' || cliente.validFor === 'N';
+
+            let respuesta = {
+                existe: true,
+                inactivo: inactivo,
+                cardCode: cliente.CardCode,
+                cardName: cliente.CardName,
+                licTradNum: cliente.LicTradNum,
+                motivo: cliente.FrozenComm || '',
+                cardType: cliente.CardType,
+                mensaje: inactivo
+                    ? (cliente.FrozenComm 
+                        ? `Cliente inactivo y ya creado en SAP`
+                        : `Cliente inactivo y ya creado en SAP`)
+                    : `El cliente ya se encuentra registrado y activo en SAP (${cliente.CardCode} - ${cliente.CardName})`
+            };
+            result(null, respuesta);
+        });
+    });
+};
+
 //Realizar el registro de un cliente en SAP
 crm.registrarclientesap = async function (auxcliente, result) {
     if (!auxcliente.U_Horario_Entrega) {
@@ -428,12 +478,27 @@ crm.registrarclientesap = async function (auxcliente, result) {
     if (!auxcliente.U_Documentacion_Cliente) {
         auxcliente.U_Documentacion_Cliente = '01';
     }
-    let aux = await registrarcliente(auxcliente);
-    if (aux) {
-        result(null, true);
-    } else {
-        result(null, false);
-    }
+
+    // Comprobación preventiva en HANA para evitar error de socio de negocio existente o inactivo
+    crm.verificarexistenciaclientehana(auxcliente.FederalTaxID || auxcliente.CardCode, async function (errVerif, resVerif) {
+        if (!errVerif && resVerif && resVerif.existe) {
+            console.warn("Intento de registrar cliente existente/inactivo en SAP:", resVerif);
+            return result(null, {
+                exito: false,
+                existe: true,
+                inactivo: resVerif.inactivo,
+                mensaje: resVerif.mensaje,
+                datos: resVerif
+            });
+        }
+
+        let aux = await registrarcliente(auxcliente);
+        if (aux) {
+            result(null, true);
+        } else {
+            result(null, false);
+        }
+    });
 }
 //Realizar la actualizacion de un cliente en SAP
 crm.actualizarclientesap = async function (auxcliente, result) {

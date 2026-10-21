@@ -187,6 +187,29 @@ function obtenerubicacionesbodega(auxciudad) {
 function listarproductossap(aux, result) {
     return new Promise((resolve, reject) => {
         const query = `
+        SELECT T0."ItemCode" as "codigo", 
+            T0."ItemName" as "nombre",
+            (SELECT T1."Price" FROM "EC_SBO_MINERVA_PRO"."ITM1" T1 WHERE T1."PriceList" = 2 and T1."ItemCode" = T0."ItemCode"  ) as PVPMIN,
+            T1."Rate", 
+            T1."Code",
+	    T0."AvgPrice"/0.85 as COSTO, 
+            'SAP' as "origen" 
+            FROM "EC_SBO_MINERVA_PRO".OITM T0
+            INNER JOIN "EC_SBO_MINERVA_PRO"."OSTC" T1 on T0."TaxCodeAR"=T1."Code"   
+            WHERE T0."validFor" = 'Y' 
+  AND T0."SellItem" = 'Y' 
+  AND (
+      T0."ItmsGrpCod" IN (
+          101, 112, 125, 102, 126, 113, 128,
+          114, 115, 129, 116, 127, 123, 124
+      )
+      OR T0."ItemCode" IN (
+          'MAP002', 'MAP004', 'MAP006'
+      )
+  )
+ORDER BY T0."ItemName" ASC;
+        `;
+        /* const query = `
             SELECT T0."ItemCode" as "codigo", 
             T0."ItemName" as "nombre",
             (SELECT T1."Price" FROM "EC_SBO_MINERVA_PRO"."ITM1" T1 WHERE T1."PriceList" = 2 and T1."ItemCode" = T0."ItemCode"  ) as PVPMIN,
@@ -208,7 +231,7 @@ function listarproductossap(aux, result) {
         )
     ) 
             ORDER BY T0."ItemName" asc;
-        `;
+        `; */
         //Query de pruebas:
         /*const query = `
             SELECT T0."ItemCode" as "codigo", 

@@ -98,6 +98,20 @@ exports.obtencionhorariosentrega = function (req, res) {
         res.json(respuesta);
     })
 }
+//Controller para verificar la existencia y estado de un cliente en SAP HANA.
+exports.verificarexistenciacliente = function (req, res) {
+    let identificacion = req.body.identificacion || req.body.CardCode || req.body.FederalTaxID;
+    if (!identificacion) {
+        return res.status(400).send({ error: true, message: 'Por favor ingrese la identificación o código del cliente.' });
+    }
+    Crm.verificarexistenciaclientehana(identificacion, function (err, respuesta) {
+        if (err) {
+            return res.status(500).send(err);
+        }
+        res.status(200).send(respuesta);
+    });
+};
+
 //Controller para realizar el registro de un cliente en SAP.
 exports.ingresarclientesap = function (req, res) {
     let auxcliente = req.body;
