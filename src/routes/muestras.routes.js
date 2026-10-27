@@ -59,6 +59,8 @@ router.get('/detalleproductocrm/:id', muestrasController.obtenerDetalleProductoC
 router.post('/detalleproductocrm/:id', muestrasController.obtenerDetalleProductoCRM);
 router.post('/detalleproductocrm', muestrasController.obtenerDetalleProductoCRM);
 router.get('/obtenerdetallesolicitud/:id', muestrasController.obtenerdetallesolicitud);
+router.post('/modificarsolicitudstandby', muestrasController.modificarsolicitudstandby);
+router.post('/enviarmuestrabodega', muestrasController.enviarmuestrabodega);
 module.exports = router;
 // Middleware para verificar el token
 function verifyToken(req, res, next) {

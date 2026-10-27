@@ -1076,3 +1076,42 @@ exports.obtenerdetallesolicitud = function (req, res) {
         res.status(200).send({ data: data });
     });
 };
+
+
+exports.modificarsolicitudstandby = function (req, res) {
+    try {
+        const aux = req.body;
+        if (!aux || !aux.idsolicitud) {
+            return res.status(400).json({ error: true, message: "Datos incompletos para modificar la solicitud." });
+        }
+        muestras.modificarsolicitudstandby(aux, function (err, respuesta) {
+            if (err) {
+                console.error("Error al modificar solicitud en standby:", err);
+                return res.status(500).json({ error: true, message: "Error interno del servidor" });
+            }
+            return res.status(200).json({ error: false, data: respuesta });
+        });
+    } catch (error) {
+        console.error("Error inesperado:", error);
+        return res.status(500).json({ error: true, message: "Error inesperado del servidor" });
+    }
+};
+
+exports.enviarmuestrabodega = function (req, res) {
+    try {
+        const aux = req.body;
+        if (!aux) {
+            return res.status(400).json({ error: true, message: "Datos incompletos para enviar a bodega." });
+        }
+        muestras.enviarmuestrabodega(aux, function (err, respuesta) {
+            if (err) {
+                console.error("Error al enviar muestra a bodega:", err);
+                return res.status(500).json({ error: true, message: "Error interno del servidor" });
+            }
+            return res.status(200).json({ error: false, data: respuesta });
+        });
+    } catch (error) {
+        console.error("Error inesperado:", error);
+        return res.status(500).json({ error: true, message: "Error inesperado del servidor" });
+    }
+};

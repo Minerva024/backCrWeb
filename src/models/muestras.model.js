@@ -186,30 +186,8 @@ function obtenerubicacionesbodega(auxciudad) {
  */
 function listarproductossap(aux, result) {
     return new Promise((resolve, reject) => {
+        
         const query = `
-        SELECT T0."ItemCode" as "codigo", 
-            T0."ItemName" as "nombre",
-            (SELECT T1."Price" FROM "EC_SBO_MINERVA_PRO"."ITM1" T1 WHERE T1."PriceList" = 2 and T1."ItemCode" = T0."ItemCode"  ) as PVPMIN,
-            T1."Rate", 
-            T1."Code",
-	    T0."AvgPrice"/0.85 as COSTO, 
-            'SAP' as "origen" 
-            FROM "EC_SBO_MINERVA_PRO".OITM T0
-            INNER JOIN "EC_SBO_MINERVA_PRO"."OSTC" T1 on T0."TaxCodeAR"=T1."Code"   
-            WHERE T0."validFor" = 'Y' 
-  AND T0."SellItem" = 'Y' 
-  AND (
-      T0."ItmsGrpCod" IN (
-          101, 112, 125, 102, 126, 113, 128,
-          114, 115, 129, 116, 127, 123, 124
-      )
-      OR T0."ItemCode" IN (
-          'MAP002', 'MAP004', 'MAP006'
-      )
-  )
-ORDER BY T0."ItemName" ASC;
-        `;
-        /* const query = `
             SELECT T0."ItemCode" as "codigo", 
             T0."ItemName" as "nombre",
             (SELECT T1."Price" FROM "EC_SBO_MINERVA_PRO"."ITM1" T1 WHERE T1."PriceList" = 2 and T1."ItemCode" = T0."ItemCode"  ) as PVPMIN,
@@ -219,7 +197,7 @@ ORDER BY T0."ItemName" ASC;
             'SAP' as "origen" 
             FROM "EC_SBO_MINERVA_PRO".OITM T0
             INNER JOIN "EC_SBO_MINERVA_PRO"."OSTC" T1 on T0."TaxCodeAR"=T1."Code"   
-            WHERE T0."validFor" =  'Y' 
+            WHERE  T0."validFor" =  'Y' 
         AND (
         T0."ItmsGrpCod" IN (
             101,112,125,102,126,113,128,
@@ -231,7 +209,7 @@ ORDER BY T0."ItemName" ASC;
         )
     ) 
             ORDER BY T0."ItemName" asc;
-        `; */
+        `; 
         //Query de pruebas:
         /*const query = `
             SELECT T0."ItemCode" as "codigo", 
@@ -1266,15 +1244,16 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
     }
 }
 //Funcion para realizar el registro de la muestra para facturar si la bodega de despacho es del SAP o descontar del stock si es una muestra del CRM
-function registrarsalidastockmuestra(datos, lote, cantidad) {
+function registrarsalidastockmuestra(datos, lote, cantidad, esMillar = false) {
     return new Promise((resolve, reject) => {
+        const cantFinal = esMillar ? Number(cantidad) : (Number(cantidad) * 1000);
         dbConnMySQL.query(
             'CALL mm_registrarsalidastock(?,?,?,?,?,?,?)',
             [
                 datos.bodegadespacho,
                 datos.ciudadsalida,
                 datos.idproductosap,
-                cantidad*1000,
+                cantFinal,
                 lote,
                 datos.aprobador,
                 datos.idmm_solicitudmuestra
@@ -1322,13 +1301,27 @@ function registrarnotificacion(slpcode, titulo, cuerpo) {
 muestras.registrarsalidastock = async function (datos, result) {
     try {
         let ingresado = false;
+        let esMillar = false;
+        try {
+            const productosMillar = await obteneritemcodeprodmillarsap();
+            esMillar = (productosMillar || []).some(p => p.ItemCode === datos.idproductosap);
+        } catch (errMillar) {
+            console.error("Error al obtener productos millar:", errMillar);
+        }
+
+        let cantAprobadaNum = Number(datos.cantidadaprobada) || 0;
+        let cantSap = cantAprobadaNum / 1000;
+        if (esMillar && cantAprobadaNum < 1 && cantAprobadaNum > 0) {
+            cantSap = cantAprobadaNum;
+        }  
+
         //Debo realizar el ingreso de los productos de las muestras en el pedido.
         if (datos.bodegadespacho == 'SAP') {
             const productossap = await listarproductossap();
 	    const producto = productossap.find(p => p.codigo === datos.idproductosap);
             let aux = {
                 "ItemCode": datos.idproductosap,
-                "Quantity": datos.cantidadaprobada/1000,
+                "Quantity": cantSap,
                 "TaxCode": productossap.find(p => p.codigo === datos.idproductosap).Code,
                 "UnitPrice": producto
                     ? (producto.PVPMIN > 0 ? producto.PVPMIN : producto.COSTO)
@@ -1342,7 +1335,7 @@ muestras.registrarsalidastock = async function (datos, result) {
             //let response='';
             if (response == 204 || response == 201) {
                 for (let item of datos.loteseleccionados) {
-                    let resp = await registrarsalidastockmuestra(datos, item.lote, item.cantidad);
+                    let resp = await registrarsalidastockmuestra(datos, item.lote, item.cantidad, esMillar);
                     if (resp[0].respuesta == true) {
                         ingresado = true;
                     } else {
@@ -1353,7 +1346,7 @@ muestras.registrarsalidastock = async function (datos, result) {
             }
         } else {
             for (let item of datos.loteseleccionados) {
-                let resp = await registrarsalidastockmuestra(datos, item.lote, item.cantidad);
+                let resp = await registrarsalidastockmuestra(datos, item.lote, item.cantidad, esMillar);
                 if (resp[0].respuesta == true) {
                     ingresado = true;
                 } else {
@@ -3143,6 +3136,72 @@ muestras.obtenerdetallesolicitud = function (id, result) {
             result(null, res);
         });
     } catch (error) {
+        result(error, null);
+    }
+};
+
+
+/**
+ * Modifica los datos de una solicitud de muestra que se encuentra en estado STANDBY (15).
+ */
+muestras.modificarsolicitudstandby = async function (datos, result) {
+    try {
+        dbConnMySQL.query(
+            'CALL mm_modificarsolicitudstandby(?,?,?,?,?,?)',
+            [
+                datos.idsolicitud,
+                datos.cantidadaprobada,
+                datos.bodegadespacho,
+                datos.ciudaddespacho,
+                datos.comentario,
+                datos.responsable
+            ],
+            (err, res) => {
+                if (err) {
+                    console.error("Error en mm_modificarsolicitudstandby:", err);
+                    return result(err, null);
+                }
+                result(null, res[0]);
+            }
+        );
+    } catch (error) {
+        console.error("Error al modificar solicitud en standby:", error);
+        result(error, null);
+    }
+};
+
+/**
+ * Pasa una o varias solicitudes de muestra de STANDBY (15) hacia BODEGA (Estado 3 y 4 si no es fraccionable).
+ */
+muestras.enviarmuestrabodega = async function (datos, result) {
+    try {
+        const lista = Array.isArray(datos.solicitudes) ? datos.solicitudes : [datos];
+
+        for (const item of lista) {
+            const idSol = item.idsolicitud || item.idmm_solicitudmuestra;
+            const resp = item.responsable || datos.responsable;
+            const isFracc = item.isfraccionable !== undefined ? item.isfraccionable : true;
+            const coment = item.comentario || 'Liberado para despacho a bodega';
+
+            await new Promise((resolve, reject) => {
+                dbConnMySQL.query(
+                    'CALL mm_enviarmuestrabodega(?,?,?,?)',
+                    [
+                        idSol,
+                        resp,
+                        isFracc,
+                        coment
+                    ],
+                    (err, res) => {
+                        if (err) return reject(err);
+                        resolve(res);
+                    }
+                );
+            });
+        }
+        result(null, { success: true, message: "Muestras enviadas a bodega con éxito" });
+    } catch (error) {
+        console.error("Error al enviar muestras a bodega:", error);
         result(error, null);
     }
 };
