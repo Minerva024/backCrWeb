@@ -458,11 +458,7 @@ crm.verificarexistenciaclientehana = function (identificacion, result) {
                 licTradNum: cliente.LicTradNum,
                 motivo: cliente.FrozenComm || '',
                 cardType: cliente.CardType,
-                mensaje: inactivo
-                    ? (cliente.FrozenComm 
-                        ? `Cliente inactivo y ya creado en SAP`
-                        : `Cliente inactivo y ya creado en SAP`)
-                    : `El cliente ya se encuentra registrado y activo en SAP (${cliente.CardCode} - ${cliente.CardName})`
+                mensaje: `El cliente ya se encuentra registrado en SAP y pertenece a : ${cliente.CardCode}, ${cliente.CardName}. Estado: ${inactivo ? 'Inactivo' : 'Activo'}`
             };
             result(null, respuesta);
         });
@@ -476,7 +472,7 @@ crm.registrarclientesap = async function (auxcliente, result) {
         auxcliente.U_Detalle_Horario = "Lun-Vie\n09:00 - 15:00";
     }
     if (!auxcliente.U_Documentacion_Cliente) {
-        auxcliente.U_Documentacion_Cliente = '01';
+        auxcliente.U_Documentacion_Cliente = '02';
     }
 
     // Comprobación preventiva en HANA para evitar error de socio de negocio existente o inactivo

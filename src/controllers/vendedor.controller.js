@@ -69,6 +69,59 @@ exports.obtenerimportacionesproducto = function (req, res) {
     }
 }
 
+// --- Control anti-duplicados por ráfagas de clics (Debounce / Idempotencia en memoria) ---
+const peticionesActivas = new Map();
+
+function ejecutarConAntiDuplicado(key, accionFn, ttlMs, callback) {
+    if (!key) {
+        return accionFn(callback);
+    }
+
+    const ahora = Date.now();
+    const existente = peticionesActivas.get(key);
+
+    if (existente) {
+        // Caso 1: La petición todavía está ejecutándose en la base de datos
+        if (existente.status === 'PENDING') {
+            console.log(`[ANTI-DUPLICADO] Ráfaga concurrente bloqueada para: ${key}. Esperando resultado en curso.`);
+            existente.waiters.push(callback);
+            return;
+        }
+
+        // Caso 2: Terminó hace menos de ttlMs (ej. 15 segundos)
+        if (existente.status === 'COMPLETED' && (ahora - existente.timestamp) < ttlMs) {
+            console.log(`[ANTI-DUPLICADO] Petición duplicada descartada para: ${key} (dentro de los ${ttlMs / 1000}s). Retornando resultado previo.`);
+            return callback(null, existente.result);
+        }
+    }
+
+    const tracker = {
+        status: 'PENDING',
+        timestamp: ahora,
+        waiters: [callback],
+        result: null
+    };
+    peticionesActivas.set(key, tracker);
+
+    accionFn((err, res) => {
+        if (err) {
+            peticionesActivas.delete(key);
+            tracker.waiters.forEach(cb => cb(err, null));
+        } else {
+            tracker.status = 'COMPLETED';
+            tracker.timestamp = Date.now();
+            tracker.result = res;
+            tracker.waiters.forEach(cb => cb(null, res));
+
+            setTimeout(() => {
+                if (peticionesActivas.get(key) === tracker) {
+                    peticionesActivas.delete(key);
+                }
+            }, ttlMs);
+        }
+    });
+}
+
 exports.ingresarofertventa = function (req, res) {
     let ofertaventa = req.body;
     console.log(req);
@@ -76,9 +129,17 @@ exports.ingresarofertventa = function (req, res) {
     if (req.body.constructor === Object && Object.keys(req.body).length === 0) {
         res.status(400).send({ error: true, message: 'Por favor ingrese todos los campos.' });
     } else {
-        Vendedor.ingresareoferta(ofertaventa, function (err, result) {
+        const key = (ofertaventa.SlpCode && ofertaventa.CardCode)
+            ? `oferta_${ofertaventa.SlpCode}_${ofertaventa.CardCode}`
+            : null;
+
+        ejecutarConAntiDuplicado(key, (cb) => {
+            Vendedor.ingresareoferta(ofertaventa, cb);
+        }, 15000, function (err, result) {
+            if (err)
+                res.send(err);
             res.json(result);
-        })
+        });
     }
 }
 
@@ -87,9 +148,17 @@ exports.ingresarcotizacion = function (req, res) {
     if (req.body.constructor === Object && Object.keys(req.body).length === 0) {
         res.status(400).send({ error: true, message: 'Por favor ingrese todos los campos.' });
     } else {
-        Vendedor.ingresarcotizacion(ofertaventa, function (err, result) {
+        const key = (ofertaventa.SlpCode && ofertaventa.CardCode)
+            ? `cotizacion_${ofertaventa.SlpCode}_${ofertaventa.CardCode}`
+            : null;
+
+        ejecutarConAntiDuplicado(key, (cb) => {
+            Vendedor.ingresarcotizacion(ofertaventa, cb);
+        }, 15000, function (err, result) {
+            if (err)
+                res.send(err);
             res.json(result);
-        })
+        });
     }
 }
 
