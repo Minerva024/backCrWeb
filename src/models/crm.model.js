@@ -1828,6 +1828,7 @@ crm.listarcotizacionescrmweb = function (body, result) {
                                     quantity: auxelement.quantity,
                                     unitprice: auxelement.unitprice,
                                     tax: auxelement.tax,
+                                    taxcode: auxelement.taxcode,
                                 }
                                 aux.items.push(auxitem);
                             }
@@ -1897,6 +1898,7 @@ crm.listarcotizacionescrmweb = function (body, result) {
                                         quantity: auxelement.quantity,
                                         unitprice: auxelement.unitprice,
                                         tax: auxelement.tax,
+                                    taxcode: auxelement.taxcode,
                                     }
                                     aux.items.push(auxitem);
                                 }
@@ -1966,6 +1968,7 @@ crm.listarcotizacionesxclientecrmweb = function (body, result) {
                                     quantity: auxelement.quantity,
                                     unitprice: auxelement.unitprice,
                                     tax: auxelement.tax,
+                                    taxcode: auxelement.taxcode,
                                 }
                                 aux.items.push(auxitem);
                             }
@@ -2035,6 +2038,7 @@ crm.listarcotizacionesxclientecrmweb = function (body, result) {
                                         quantity: auxelement.quantity,
                                         unitprice: auxelement.unitprice,
                                         tax: auxelement.tax,
+                                    taxcode: auxelement.taxcode,
                                     }
                                     aux.items.push(auxitem);
                                 }

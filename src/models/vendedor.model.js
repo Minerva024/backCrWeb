@@ -121,7 +121,7 @@ Vendedor.listarclientesvendedor = function (auxslpcode, result) {
 // Listado de producto activos de SAP.
 Vendedor.listarproductos = function (result) {
     let productos = [];
-    var queryconsultahana = "SELECT T0.\"ItemCode\", T0.\"ItemName\", T3.\"ItmsGrpNam\", T1.\"Code\", T1.\"Rate\", (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'Q01') as BUIO, (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'G01') as BGYE, T0.\"InvntryUom\", (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 2 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPMIN, (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 5 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPMAX, (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 6 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPESP FROM \"EC_SBO_MINERVA_PRO\".OITM T0 INNER JOIN \"EC_SBO_MINERVA_PRO\".\"OITB\" T3 on T3.\"ItmsGrpCod\" = T0.\"ItmsGrpCod\" INNER JOIN \"EC_SBO_MINERVA_PRO\".\"OSTC\" T1 on T0.\"TaxCodeAR\"=T1.\"Code\" WHERE T0.\"validFor\" =  'Y' and ( T0.\"ItmsGrpCod\" = 101 or T0.\"ItmsGrpCod\" = 112 or T0.\"ItmsGrpCod\" = 125 or T0.\"ItmsGrpCod\" = 102 or T0.\"ItmsGrpCod\" = 126 or T0.\"ItmsGrpCod\" = 113 or T0.\"ItmsGrpCod\" = 128 or T0.\"ItmsGrpCod\" = 114 or T0.\"ItmsGrpCod\" = 115 or T0.\"ItmsGrpCod\" = 129 or T0.\"ItmsGrpCod\" = 116 or T0.\"ItmsGrpCod\" = 127 or T0.\"ItmsGrpCod\" = 123 or T0.\"ItmsGrpCod\" = 124 ) ORDER BY T0.\"ItemName\" asc;";
+    var queryconsultahana = "SELECT T0.\"ItemCode\", T0.\"ItemName\", T3.\"ItmsGrpNam\", T1.\"Code\", T1.\"Rate\", (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'Q01') as BUIO, (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'G01') as BGYE, T0.\"InvntryUom\", (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 2 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPMIN, (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 5 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPMAX, (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 6 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPESP FROM \"EC_SBO_MINERVA_PRO\".OITM T0 INNER JOIN \"EC_SBO_MINERVA_PRO\".\"OITB\" T3 on T3.\"ItmsGrpCod\" = T0.\"ItmsGrpCod\" INNER JOIN \"EC_SBO_MINERVA_PRO\".\"OSTC\" T1 on T0.\"TaxCodeAR\"=T1.\"Code\" WHERE T0.\"validFor\" = 'Y' AND T0.\"SellItem\" = 'Y' and ( T0.\"ItmsGrpCod\" = 101 or T0.\"ItmsGrpCod\" = 112 or T0.\"ItmsGrpCod\" = 125 or T0.\"ItmsGrpCod\" = 102 or T0.\"ItmsGrpCod\" = 126 or T0.\"ItmsGrpCod\" = 113 or T0.\"ItmsGrpCod\" = 128 or T0.\"ItmsGrpCod\" = 114 or T0.\"ItmsGrpCod\" = 115 or T0.\"ItmsGrpCod\" = 129 or T0.\"ItmsGrpCod\" = 116 or T0.\"ItmsGrpCod\" = 127 or T0.\"ItmsGrpCod\" = 123 or T0.\"ItmsGrpCod\" = 124 ) ORDER BY T0.\"ItemName\" asc;";
     const conn = hana.createConnection();
     conn.connect(dbConnHana, function (err) {
         if (err) {
@@ -278,7 +278,7 @@ Vendedor.ingresareoferta = async function (oferta, result) {
 // *****agregado solo esta linea RM
 
 console.log("[OFERTA] Iniciando registro en SAP...");
-console.log("[OFERTA] Líneas enviadas a SAP:");
+console.log("[OFERTA] Lï¿½neas enviadas a SAP:");
 console.log(JSON.stringify(auxofertaslsap.DocumentLines, null, 2));
 
 // termina la linea
@@ -290,7 +290,7 @@ console.log(JSON.stringify(auxofertaslsap, null, 2));
  let ingresado = await ingresarofertadeventa(auxofertaslsap);
 
 // **** agrega otra linea RM
-console.log("[OFERTA] SAP respondió:", ingresado);
+console.log("[OFERTA] SAP respondiï¿½:", ingresado);
 // termina linea    
 
 
@@ -376,7 +376,7 @@ Vendedor.ingresarcotizacion = async function (oferta, result) {
                 ingresadocotizacion = true;
                 let contador = 0;
                 oferta["DocumentLines"].forEach(element => {
-                    var queryconsultamysql2 = "CALL ingresaritemcotizacion('" + element["ItemCode"] + "','" + element["ItemName"] + "'," + parseFloat(element["Quantity"]).toFixed(2) + "," + parseFloat(element["UnitPrice"]).toFixed(2) + "," + element["Rate"] + "," + json[0][0]["idcotizacion"] + ")";
+                    var queryconsultamysql2 = "CALL ingresaritemcotizacion('" + element["ItemCode"] + "','" + element["ItemName"] + "'," + parseFloat(element["Quantity"]).toFixed(2) + "," + parseFloat(element["UnitPrice"]).toFixed(2) + "," + element["Rate"] + "," + json[0][0]["idcotizacion"] + ",'" + (element["TaxCode"] ? element["TaxCode"] : "") + "')";
                     dbConnMySQL.query(queryconsultamysql2, async function (err, res) {
                         if (!err) {
                             var json = JSON.parse(JSON.stringify(res));
@@ -1706,7 +1706,7 @@ Vendedor.aprobarcotizacion = function (auxidcotizacion, result) {
                         "ItemCode": element['itemcode'],
                         "Quantity": element['quantity'],
                         "UnitPrice": element['unitprice'],
-                        "TaxCode": element['tax']
+                        "TaxCode": element['taxcode'] || element['TaxCode'] || (element['tax'] == 0 ? 'IVA_EXE' : 'IVA15')
                     }
                     itemofsap.push(aux);
                 });
