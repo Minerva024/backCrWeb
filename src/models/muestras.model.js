@@ -187,7 +187,7 @@ function obtenerubicacionesbodega(auxciudad) {
 function listarproductossap(aux, result) {
     return new Promise((resolve, reject) => {
         
-        const query = `
+       /* const query = `
             SELECT T0."ItemCode" as "codigo", 
             T0."ItemName" as "nombre",
             (SELECT T1."Price" FROM "EC_SBO_MINERVA_PRO"."ITM1" T1 WHERE T1."PriceList" = 2 and T1."ItemCode" = T0."ItemCode"  ) as PVPMIN,
@@ -197,41 +197,31 @@ function listarproductossap(aux, result) {
             'SAP' as "origen" 
             FROM "EC_SBO_MINERVA_PRO".OITM T0
             INNER JOIN "EC_SBO_MINERVA_PRO"."OSTC" T1 on T0."TaxCodeAR"=T1."Code"   
-            WHERE  T0."validFor" =  'Y' 
-        AND (
-        T0."ItmsGrpCod" IN (
-            101,112,125,102,126,113,128,
-            114,115,129,116,127,123,124
-        )
-        AND T0."SellItem"='Y'
-        OR T0."ItemCode" IN (
-            'MAP002','MAP004','MAP006'
-        )
-    ) 
+            WHERE   T0."QryGroup14" = 'Y'
             ORDER BY T0."ItemName" asc;
-        `; 
+        `; */
         //Query de pruebas:
-        /*const query = `
+        const query = `
             SELECT T0."ItemCode" as "codigo", 
             T0."ItemName" as "nombre",
-            (SELECT T1."Price" FROM "PRUEBAS_CRM"."ITM1" T1 WHERE T1."PriceList" = 2 and T1."ItemCode" = T0."ItemCode"  ) as PVPMIN,
+            (SELECT T1."Price" FROM "EC_SBO_MINERVA_PRO"."ITM1" T1 WHERE T1."PriceList" = 2 and T1."ItemCode" = T0."ItemCode"  ) as PVPMIN,
             T1."Rate", 
             T1."Code", 
             'SAP' as "origen" 
-            FROM "PRUEBAS_CRM".OITM T0
-            INNER JOIN "PRUEBAS_CRM"."OSTC" T1 on T0."TaxCodeAR"=T1."Code"   
-            WHERE T0."validFor" =  'Y' 
+            FROM "EC_SBO_MINERVA_PRO".OITM T0
+            INNER JOIN "EC_SBO_MINERVA_PRO".OSTC T1 on T0."TaxCodeAR"=T1."Code"   
+            WHERE  T0."QryGroup14" = 'Y'
             AND (
         T0."ItmsGrpCod" IN (
             101,112,125,102,126,113,128,
             114,115,129,116,127,123,124
         )
         OR T0."ItemCode" IN (
-            'MAP002','MAP004','MAP005','MAP006'
+            'MAP002','MAP004','MAP005','MAP006', 'MAP007'
         )
     ) 
             ORDER BY T0."ItemName" asc;
-        `;*/
+        `;
 
         const conn = hana.createConnection();
 
