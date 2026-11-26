@@ -617,7 +617,7 @@ exports.obtenerversion = function (req, res) {
         versionName: "2026.11.25",
         urlApk: `${protocol}://${host}/api/v1/vendedor/descargar-apk`,
         mensaje: "Nueva versión oficial disponible con Biometría, Bodega Gualo y Costo Futuro.",
-        obligatorio: false
+        obligatorio: true
     });
 };
 
