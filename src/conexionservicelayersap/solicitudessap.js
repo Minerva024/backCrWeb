@@ -510,9 +510,8 @@ exports.ingresarordendecompra = async function (auxorden, result) {
     }
     //Realizo la peticiÃ³n con un try y catch.
     try {
-        const response = await axios.post(urlbase + "Orders",auxorden, config);
-        console.log(response);
-        
+        const response = await axios.post(urlbase + "Orders", auxorden, config);
+        console.log("Orden de compra SAP creada exitosamente:", response.status);
         return response.status;
     } catch (error) {
         // Si la sesiÃ³n estÃ¡ expirada, intentamos renovar la cookie
@@ -528,42 +527,24 @@ exports.ingresarordendecompra = async function (auxorden, result) {
             };
             //Realizo la solicitud al Service Layer de SAP nuevamente con la nueva cookie.
             try {
-                const retryResponse = await axios.post(urlbase + "Orders",auxorden, config);
+                const retryResponse = await axios.post(urlbase + "Orders", auxorden, retryConfig);
                 return retryResponse.status;
             } catch (retryError) {
-                console.error("Error al reintentar obtener cliente:", retryError.response.data);
-                return false;
-            }
-        } else if (error.response && error.response.data && error.response.data.error) {
-            const errMsg = error.response.data.error.message ? (error.response.data.error.message.value || error.response.data.error.message) : '';
-            const match = typeof errMsg === 'string' ? errMsg.match(/Property '([^']+)' of 'BusinessPartner' is invalid/) : null;
-            if (match && match[1]) {
-                const invalidProp = match[1];
-                console.warn(`Campo ${invalidProp} no existe en la base SAP actual. Reintentando sin este campo...`);
-                delete auxcliente[invalidProp];
-                try {
-                    const retryResponse = await axios.patch(urlbase + "BusinessPartners('"+auxcliente.CardCode+"')", auxcliente, config);
-                    return retryResponse.status === 204;
-                } catch (retryError) {
-                    console.error("Error al reintentar sin campo inválido:", retryError.response ? retryError.response.data : retryError.message);
-                    return false;
-                }
-            } else {
-                console.error("Error general al actualizar cliente:", error.response.data);
-                return false;
+                const retryMsg = retryError.response?.data?.error?.message?.value || retryError.response?.data?.error?.message || retryError.message;
+                console.error("Error al reintentar crear orden SAP:", retryMsg);
+                throw new Error("Error en SAP Service Layer al reintentar crear orden: " + retryMsg);
             }
         } else {
-            console.error("Error general al actualizar cliente:", error.response ? error.response.data : (error.message || error));
-            return false;
+            const errMsg = error.response?.data?.error?.message?.value || error.response?.data?.error?.message || error.message;
+            console.error("Error general al crear orden SAP:", errMsg);
+            throw new Error("Error en SAP Service Layer al crear orden: " + errMsg);
         }
     }
 }
 //Funcion para actualizar la orden de compra para la muestra
-exports.actualizarordendecompra = async function (auxiddocumento,auxorden, result) {
+exports.actualizarordendecompra = async function (auxiddocumento, auxorden, result) {
     //cookiesap= '';
-    console.log("Datos que llegan al servicio");
-    console.log(auxorden);
-    
+    console.log("Datos que llegan a actualizarordendecompra SAP:", auxiddocumento);
     
     //Compruebo si el cookie esta vacio o es nulo, para obtener la cookie desde el service layer.
     if (!cookiesap) {
@@ -586,8 +567,7 @@ exports.actualizarordendecompra = async function (auxiddocumento,auxorden, resul
     //Realizo la peticiÃ³n con un try y catch.
     try {
         const response = await axios.patch(urlbase + "Orders(" + auxiddocumento + ")", patchPayload, config);
-        //console.log(response);
-        
+        console.log("Orden de compra SAP actualizada exitosamente:", response.status);
         return response.status;
     } catch (error) {
         // Si la sesiÃ³n estÃ¡ expirada, intentamos renovar la cookie
@@ -606,30 +586,14 @@ exports.actualizarordendecompra = async function (auxiddocumento,auxorden, resul
                 const retryResponse = await axios.patch(urlbase + "Orders(" + auxiddocumento + ")", patchPayload, retryConfig);
                 return retryResponse.status;
             } catch (retryError) {
-                console.error("Error al reintentar obtener cliente:", retryError.response.data);
-                return false;
-            }
-        } else if (error.response && error.response.data && error.response.data.error) {
-            const errMsg = error.response.data.error.message ? (error.response.data.error.message.value || error.response.data.error.message) : '';
-            const match = typeof errMsg === 'string' ? errMsg.match(/Property '([^']+)' of 'BusinessPartner' is invalid/) : null;
-            if (match && match[1]) {
-                const invalidProp = match[1];
-                console.warn(`Campo ${invalidProp} no existe en la base SAP actual. Reintentando sin este campo...`);
-                delete auxcliente[invalidProp];
-                try {
-                    const retryResponse = await axios.patch(urlbase + "BusinessPartners('"+auxcliente.CardCode+"')", auxcliente, config);
-                    return retryResponse.status === 204;
-                } catch (retryError) {
-                    console.error("Error al reintentar sin campo inválido:", retryError.response ? retryError.response.data : retryError.message);
-                    return false;
-                }
-            } else {
-                console.error("Error general al actualizar cliente:", error.response.data);
-                return false;
+                const retryMsg = retryError.response?.data?.error?.message?.value || retryError.response?.data?.error?.message || retryError.message;
+                console.error("Error al reintentar actualizar orden SAP:", retryMsg);
+                throw new Error("Error en SAP Service Layer al reintentar actualizar orden: " + retryMsg);
             }
         } else {
-            console.error("Error general al actualizar cliente:", error.response ? error.response.data : (error.message || error));
-            return false;
+            const errMsg = error.response?.data?.error?.message?.value || error.response?.data?.error?.message || error.message;
+            console.error("Error general al actualizar orden SAP:", errMsg);
+            throw new Error("Error en SAP Service Layer al actualizar orden: " + errMsg);
         }
     }
 }

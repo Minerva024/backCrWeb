@@ -174,6 +174,44 @@ function obtenerubicacionesbodega(auxciudad) {
         });
     });
 }
+// Helper para mapear ItmsGrpCod de SAP a Centro de Costos Categoria (Dimension 4 OPRC)
+function obtenerCentroCostoCategoria(itmsGrpCod) {
+    const cod = Number(itmsGrpCod);
+    switch (cod) {
+        case 102: // ALIMENTOS
+        case 126: // ALIMENTOS IVA 0%
+            return 'ALI';
+        case 112: // AGROQUIMICOS
+        case 125: // AGROQUIMICOS IVA 0%
+            return 'AGR';
+        case 113: // BALANCEADOS
+        case 128: // BALANCEADOS IVA 0%
+            return 'BAL';
+        case 114: // CONSTRUCCIÓN
+            return 'CON';
+        case 115: // CUIDADO DE HOGAR
+            return 'CUH';
+        case 116: // CUIDADO PERSONAL
+        case 129: // CUIDADO PERSO IVA 0%
+            return 'CUP';
+        case 105: // INSUMOS
+            return 'INS';
+        case 124: // PLÁSTICOS Y CAUCHOS
+            return 'PYC';
+        case 123: // PINTURAS Y AFINES
+        case 127: // PINT Y AFINES IVA 0%
+        case 101: // ADITIVOS
+        case 103: // CARGAS
+        case 104: // GLICOL-MONOMERO-DIS
+        case 106: // PIGMENTOS
+        case 107: // RESINAS
+        case 109: // SOLVENTES ALIFATICOS
+            return 'PYA';
+        default:
+            return 'OTR';
+    }
+}
+
 //Funcion para obtener los items de SAP.
 /**
  * Funcion para obtener los items/productos de SAP HANA.
@@ -208,6 +246,7 @@ function listarproductossap(aux, result) {
             T1."Rate", 
             T1."Code",
             T0."AvgPrice"/0.85 as COSTO, 
+            T0."ItmsGrpCod" as "ItmsGrpCod",
             'SAP' as "origen" 
             FROM "EC_SBO_MINERVA_PRO".OITM T0
             INNER JOIN "EC_SBO_MINERVA_PRO"."OSTC" T1 on T0."TaxCodeAR"=T1."Code"   
@@ -1313,18 +1352,24 @@ muestras.registrarsalidastock = async function (datos, result) {
             if (!producto) {
                 throw new Error(`El producto (${datos.idproductosap}) a despachar se encuentra inactivo o no está disponible para venta en SAP.`);
             }
+            const catCostCode = obtenerCentroCostoCategoria(producto.ItmsGrpCod);
             let aux = {
                 "ItemCode": datos.idproductosap,
                 "Quantity": cantSap,
                 "TaxCode": producto.Code,
                 "UnitPrice": producto.PVPMIN > 0 ? producto.PVPMIN : producto.COSTO,
-                "WarehouseCode": datos.ciudadsalida == 'UIO' ? 'MUEQ' : 'MUEG'
-            }
-            console.log(aux);
+                "WarehouseCode": datos.ciudadsalida == 'UIO' ? 'MUEQ' : 'MUEG',
+                "CostingCode": "VTA",
+                "CostingCode2": datos.ciudadsalida,
+                "CostingCode4": catCostCode,
+                "COGSCostingCode": "VTA",
+                "COGSCostingCode2": datos.ciudadsalida,
+                "COGSCostingCode4": catCostCode
+            };
+            console.log("Línea a registrar/actualizar en orden SAP:", aux);
 
-           let response = await ingresaractualizarpedido(aux, datos.ciudadsalida);
+            let response = await ingresaractualizarpedido(aux, datos.ciudadsalida);
             console.log("Respuesta de actualizar o crear un pedido: " + response);
-            //let response='';
             if (response == 204 || response == 201) {
                 for (let item of datos.loteseleccionados) {
                     let resp = await registrarsalidastockmuestra(datos, item.lote, item.cantidad, esMillar);
@@ -1335,6 +1380,8 @@ muestras.registrarsalidastock = async function (datos, result) {
                         break;
                     }
                 }
+            } else {
+                throw new Error(`Error en SAP Service Layer al procesar orden de muestras: Código de respuesta ${response}`);
             }
         } else {
             for (let item of datos.loteseleccionados) {
@@ -1376,7 +1423,7 @@ muestras.registrarsalidastock = async function (datos, result) {
         }
         result(null, ingresado)
     } catch (error) {
-        console.log("No se ha podido realizar el registro de las salidas de stock");
+        console.log("No se ha podido realizar el registro de las salidas de stock:", error.message || error);
         result(error, null);
     }
 }
@@ -1387,17 +1434,17 @@ async function ingresaractualizarpedido(producto, auxciudad) {
     const fechaFin = moment()
         .endOf('month')
         .format('YYYY-MM-DD');
-    //console.log(datos);
 
     let datosempresa = {
         "CardCode": "C1790038033001",
         "DocDueDate": fechaFin,
         "Series": auxciudad === 'UIO' ? 246 : 247,
+        "SalesPersonCode": auxciudad === 'GYE' ? 1 : 2, // 1: CALL CENTER GYE, 2: CALL CENTER UIO
         "U_Horario_Entrega": "H012",
         "U_Detalle_Horario": "Lun-Vie\n09:00 - 15:00",
         "DocumentLines": [
         ]
-    }
+    };
     datosempresa.DocumentLines.push(producto);
 
     //Primero debo revisar si existe un pedido abierto de esa serie
@@ -1418,6 +1465,9 @@ async function ingresaractualizarpedido(producto, auxciudad) {
             throw new Error(`Existe un producto inactivo (${codigosInactivos}) en la orden de muestras de Minerva en SAP. Por favor verifique o active el producto en SAP para continuar.`);
         }
 
+        // Asegurar vendedor correcto en la orden abierta (1: CALL CENTER GYE, 2: CALL CENTER UIO)
+        datosempresa.SalesPersonCode = auxciudad === 'GYE' ? 1 : 2;
+
         //Busco dentro de la pedido registrado si ya existe el producto que quiero ingresar.
         const productoregistrado = pedidoregistrado.DocumentLines.find(p => p.ItemCode === datosempresa.DocumentLines[0].ItemCode);
         //Recorro el DocumentLines para ver si existe,
@@ -1429,19 +1479,40 @@ async function ingresaractualizarpedido(producto, auxciudad) {
                 if (prodEncontrado && prodEncontrado.PVPMIN !== undefined && prodEncontrado.PVPMIN !== null) {
                     item.UnitPrice = prodEncontrado.PVPMIN; //Actualizo el precio Minimo si existe en la lista
                 }
+                const catCostCode = prodEncontrado ? obtenerCentroCostoCategoria(prodEncontrado.ItmsGrpCod) : 'OTR';
+                if (!item.CostingCode) item.CostingCode = "VTA";
+                if (!item.CostingCode2) item.CostingCode2 = auxciudad;
+                if (!item.CostingCode4) item.CostingCode4 = catCostCode;
+                if (!item.COGSCostingCode) item.COGSCostingCode = "VTA";
+                if (!item.COGSCostingCode2) item.COGSCostingCode2 = auxciudad;
+                if (!item.COGSCostingCode4) item.COGSCostingCode4 = catCostCode;
+
                 if (item.ItemCode == datosempresa.DocumentLines[0].ItemCode) {
                     item.Quantity += (datosempresa.DocumentLines[0].Quantity); //Encuentro la coincidencia dentro de la orden de venta y su la cantidad del producto.
+                    item.CostingCode = "VTA";
+                    item.CostingCode2 = auxciudad;
+                    item.CostingCode4 = producto.CostingCode4 || catCostCode;
+                    item.COGSCostingCode = "VTA";
+                    item.COGSCostingCode2 = auxciudad;
+                    item.COGSCostingCode4 = producto.COGSCostingCode4 || catCostCode;
                 }
             }
             datosempresa.DocumentLines = pedidoregistrado.DocumentLines;
         } else {
-           
             for (let item of pedidoregistrado.DocumentLines) {
                 if (item.ItemCode != datosempresa.DocumentLines[0].ItemCode) {
                     const prodEncontrado = productossap.find(p => p.codigo === item.ItemCode);
                     if (prodEncontrado && prodEncontrado.PVPMIN !== undefined && prodEncontrado.PVPMIN !== null) {
                         item.UnitPrice = prodEncontrado.PVPMIN;
                     }
+                    const catCostCode = prodEncontrado ? obtenerCentroCostoCategoria(prodEncontrado.ItmsGrpCod) : 'OTR';
+                    if (!item.CostingCode) item.CostingCode = "VTA";
+                    if (!item.CostingCode2) item.CostingCode2 = auxciudad;
+                    if (!item.CostingCode4) item.CostingCode4 = catCostCode;
+                    if (!item.COGSCostingCode) item.COGSCostingCode = "VTA";
+                    if (!item.COGSCostingCode2) item.COGSCostingCode2 = auxciudad;
+                    if (!item.COGSCostingCode4) item.COGSCostingCode4 = catCostCode;
+
                     datosempresa.DocumentLines.push(item);
                 }
             }
@@ -1453,29 +1524,26 @@ async function ingresaractualizarpedido(producto, auxciudad) {
             });
         }
         //Debo revisar que el item a ingresar ya no se encuentre creado.
-        const actualizarpedido = await actualizarordendecompra(iddocumento[0]["DocEntry"], datosempresa)
+        const actualizarpedido = await actualizarordendecompra(iddocumento[0]["DocEntry"], datosempresa);
 
         return actualizarpedido;
 
     } else {
-        console.log("Debo registrar la orden de compra");
-        datosempresa.DocumentLines[0].Quantity =
-            (datosempresa.DocumentLines[0].Quantity )
+        console.log("Debo registrar la orden de compra nueva en SAP");
+        datosempresa.SalesPersonCode = auxciudad === 'GYE' ? 1 : 2;
         const respuesta = await ingresarordendecompra(datosempresa);
-        //console.log(respuesta);
 
-        return respuesta.status;
+        return (respuesta && respuesta.status) ? respuesta.status : respuesta;
     }
 }
 function obteneridpedidodemuestras(auxciudad, result) {
     return new Promise((resolve, reject) => {
-        //console.log(auxciudad);
-
+        const ciudadNorm = (auxciudad || '').toString().trim().toUpperCase();
         let query = '';
-        if (auxciudad == 'UIO') {
-            query = `SELECT T0."DocEntry" FROM "EC_SBO_MINERVA_PRO"."ORDR"T0 WHERE T0."DocStatus" ='O' and T0."Series"=246`;
+        if (ciudadNorm === 'UIO') {
+            query = `SELECT TOP 1 T0."DocEntry" FROM "EC_SBO_MINERVA_PRO"."ORDR" T0 WHERE T0."DocStatus" ='O' and T0."Series"=246 ORDER BY T0."DocDate" DESC, T0."DocEntry" DESC`;
         } else {
-            query = `SELECT T0."DocEntry" FROM "EC_SBO_MINERVA_PRO"."ORDR"T0 WHERE T0."DocStatus" ='O' and T0."Series"=247`;
+            query = `SELECT TOP 1 T0."DocEntry" FROM "EC_SBO_MINERVA_PRO"."ORDR" T0 WHERE T0."DocStatus" ='O' and T0."Series"=247 ORDER BY T0."DocDate" DESC, T0."DocEntry" DESC`;
         }
 
         const conn = hana.createConnection();
