@@ -156,6 +156,37 @@ console.error(
 }
 exports.registrarcliente = async function (auxcliente, result) {
     let auxingresado = false;
+    
+    // Evitar error ODBC -2035 de SAP: ContactEmployees.Name debe ser único por cliente
+    if (auxcliente.ContactEmployees && Array.isArray(auxcliente.ContactEmployees)) {
+        const usedNames = new Set();
+        auxcliente.ContactEmployees.forEach((item, idx) => {
+            // Si el contacto solo se está inactivando (Active: 'tNO'), no tocar su Name
+            if (item.Active === 'tNO' && !item.FirstName && !item.Position) {
+                return;
+            }
+
+            // Si el contacto ya existe (tiene InternalCode) y ya tiene un Name asignado en SAP, conservar su Name original
+            let base = '';
+            if (item.InternalCode && item.Name) {
+                base = item.Name;
+            } else {
+                // Para contactos nuevos o sin Name, preferir Nombre Completo para evitar colisiones con cargos genéricos como 'OTROS'
+                const fullName = `${item.FirstName || ''} ${item.LastName || ''}`.trim();
+                base = fullName || (item.Position ? `${item.Position} ${idx + 1}` : `Contacto ${idx + 1}`);
+            }
+
+            let uniqueName = base;
+            let counter = 2;
+            while (usedNames.has(uniqueName)) {
+                uniqueName = `${base} ${counter}`;
+                counter++;
+            }
+            usedNames.add(uniqueName);
+            item.Name = uniqueName;
+        });
+    }
+
     console.log(auxcliente);
     
     //cookiesap= '';
@@ -190,11 +221,11 @@ exports.registrarcliente = async function (auxcliente, result) {
                 const retryResponse = await axios.post(urlbase + "BusinessPartners", auxcliente, retryConfig);
                 return retryResponse.status === 201;
             } catch (retryError) {
-                console.error("Error al reintentar obtener cliente:", retryError.response.data);
+                console.error("Error al reintentar registrar cliente:", retryError.response ? retryError.response.data : retryError.message);
                 return false;
             }
         } else {
-            console.error("Error general al obtener cliente:", error.response.data);
+            console.error("Error general al registrar cliente:", error.response ? error.response.data : (error.message || error));
             return false;
         }
     }
@@ -343,6 +374,37 @@ exports.obtenerclientesap = async function (auxcardcode, params) {
 //Funcion para realizar la actualizaciÃ³n de un cliente o un lead.
 exports.actualizarcliente = async function (auxcliente, result) {
     let auxingresado = false;
+    
+    // Evitar error ODBC -2035 de SAP: ContactEmployees.Name debe ser único por cliente
+    if (auxcliente.ContactEmployees && Array.isArray(auxcliente.ContactEmployees)) {
+        const usedNames = new Set();
+        auxcliente.ContactEmployees.forEach((item, idx) => {
+            // Si el contacto solo se está inactivando (Active: 'tNO'), no tocar su Name
+            if (item.Active === 'tNO' && !item.FirstName && !item.Position) {
+                return;
+            }
+
+            // Si el contacto ya existe (tiene InternalCode) y ya tiene un Name asignado en SAP, conservar su Name original
+            let base = '';
+            if (item.InternalCode && item.Name) {
+                base = item.Name;
+            } else {
+                // Para contactos nuevos o sin Name, preferir Nombre Completo para evitar colisiones con cargos genéricos como 'OTROS'
+                const fullName = `${item.FirstName || ''} ${item.LastName || ''}`.trim();
+                base = fullName || (item.Position ? `${item.Position} ${idx + 1}` : `Contacto ${idx + 1}`);
+            }
+
+            let uniqueName = base;
+            let counter = 2;
+            while (usedNames.has(uniqueName)) {
+                uniqueName = `${base} ${counter}`;
+                counter++;
+            }
+            usedNames.add(uniqueName);
+            item.Name = uniqueName;
+        });
+    }
+
     console.log(auxcliente);
     //cookiesap= '';
     //Compruebo si el cookie esta vacio o es nulo, para obtener la cookie desde el service layer.
@@ -378,11 +440,11 @@ exports.actualizarcliente = async function (auxcliente, result) {
                 const retryResponse = await axios.patch(urlbase + "BusinessPartners('"+auxcliente.CardCode+"')", auxcliente, retryConfig);
                 return retryResponse.status === 204;
             } catch (retryError) {
-                console.error("Error al reintentar obtener cliente:", retryError.response.data);
+                console.error("Error al reintentar actualizar cliente:", retryError.response ? retryError.response.data : retryError.message);
                 return false;
             }
         } else {
-            console.error("Error general al obtener cliente:", error.response.data);
+            console.error("Error general al actualizar cliente:", error.response ? error.response.data : (error.message || error));
             return false;
         }
     }
@@ -472,8 +534,26 @@ exports.ingresarordendecompra = async function (auxorden, result) {
                 console.error("Error al reintentar obtener cliente:", retryError.response.data);
                 return false;
             }
+        } else if (error.response && error.response.data && error.response.data.error) {
+            const errMsg = error.response.data.error.message ? (error.response.data.error.message.value || error.response.data.error.message) : '';
+            const match = typeof errMsg === 'string' ? errMsg.match(/Property '([^']+)' of 'BusinessPartner' is invalid/) : null;
+            if (match && match[1]) {
+                const invalidProp = match[1];
+                console.warn(`Campo ${invalidProp} no existe en la base SAP actual. Reintentando sin este campo...`);
+                delete auxcliente[invalidProp];
+                try {
+                    const retryResponse = await axios.patch(urlbase + "BusinessPartners('"+auxcliente.CardCode+"')", auxcliente, config);
+                    return retryResponse.status === 204;
+                } catch (retryError) {
+                    console.error("Error al reintentar sin campo inválido:", retryError.response ? retryError.response.data : retryError.message);
+                    return false;
+                }
+            } else {
+                console.error("Error general al actualizar cliente:", error.response.data);
+                return false;
+            }
         } else {
-            console.error("Error general al obtener cliente:", error.response.data);
+            console.error("Error general al actualizar cliente:", error.response ? error.response.data : (error.message || error));
             return false;
         }
     }
@@ -499,6 +579,7 @@ exports.actualizarordendecompra = async function (auxiddocumento,auxorden, resul
     const patchPayload = {
         "DocumentLines": auxorden.DocumentLines
     };
+    if (auxorden.SalesPersonCode) patchPayload.SalesPersonCode = auxorden.SalesPersonCode;
     if (auxorden.U_Horario_Entrega) patchPayload.U_Horario_Entrega = auxorden.U_Horario_Entrega;
     if (auxorden.U_Detalle_Horario) patchPayload.U_Detalle_Horario = auxorden.U_Detalle_Horario;
 
@@ -528,8 +609,26 @@ exports.actualizarordendecompra = async function (auxiddocumento,auxorden, resul
                 console.error("Error al reintentar obtener cliente:", retryError.response.data);
                 return false;
             }
+        } else if (error.response && error.response.data && error.response.data.error) {
+            const errMsg = error.response.data.error.message ? (error.response.data.error.message.value || error.response.data.error.message) : '';
+            const match = typeof errMsg === 'string' ? errMsg.match(/Property '([^']+)' of 'BusinessPartner' is invalid/) : null;
+            if (match && match[1]) {
+                const invalidProp = match[1];
+                console.warn(`Campo ${invalidProp} no existe en la base SAP actual. Reintentando sin este campo...`);
+                delete auxcliente[invalidProp];
+                try {
+                    const retryResponse = await axios.patch(urlbase + "BusinessPartners('"+auxcliente.CardCode+"')", auxcliente, config);
+                    return retryResponse.status === 204;
+                } catch (retryError) {
+                    console.error("Error al reintentar sin campo inválido:", retryError.response ? retryError.response.data : retryError.message);
+                    return false;
+                }
+            } else {
+                console.error("Error general al actualizar cliente:", error.response.data);
+                return false;
+            }
         } else {
-            console.error("Error general al obtener cliente:", error.response.data);
+            console.error("Error general al actualizar cliente:", error.response ? error.response.data : (error.message || error));
             return false;
         }
     }

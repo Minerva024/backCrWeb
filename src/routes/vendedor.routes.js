@@ -44,4 +44,6 @@ router.get('/procesoalmacenado', vendedorController.procesoalmacenado);
 router.get('/obtenerinformacionreunion',vendedorController.obtenerinforacionparavisita);
 router.get('/libroslegales', vendedorController.obtenerlibroslegales);
 router.get('/libroslegalescrismo', vendedorController.obtenerlibroslegalescrismo);
+router.get('/version', vendedorController.obtenerversion);
+router.get('/descargar-apk', vendedorController.descargarApk);
 module.exports = router;

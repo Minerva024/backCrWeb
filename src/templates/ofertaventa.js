@@ -80,13 +80,13 @@ this.enviar_mail = (auxmailvendedor, slpname,auxcardcode, auxcardname, auxfechae
 
 
     var maillistto= [];
-    if(auxbodega == 'UIO'){
+    if(auxbodega == 'UIO' || auxbodega == 'M-UIO' || auxbodega == 'G-UIO'){
         maillistto = [
             'jger@minerva.com.ec',
             'carmas@minerva.com.ec',
             'grodriguez@minerva.com.ec'
         ];
-    }else if(auxbodega == 'GYE'){
+    }else if(auxbodega == 'GYE' || auxbodega == 'B-GYE'){
         maillistto = [
             'jger@minerva.com.ec',
             'carmas@minerva.com.ec',
@@ -208,13 +208,13 @@ this.enviar_mail_cotizacion = (auxmailvendedor, slpname,auxcardcode, auxcardname
             </div> 
             </div> 
         </div> `;    var maillistto= [];
-    if(auxbodega == 'UIO'){
+    if(auxbodega == 'UIO' || auxbodega == 'M-UIO' || auxbodega == 'G-UIO'){
         maillistto = [
             'jger@minerva.com.ec',
             'carmas@minerva.com.ec',
             'grodriguez@minerva.com.ec'
         ];
-    }else if(auxbodega == 'GYE'){
+    }else if(auxbodega == 'GYE' || auxbodega == 'B-GYE'){
         maillistto = [
             'jger@minerva.com.ec',
             'carmas@minerva.com.ec',

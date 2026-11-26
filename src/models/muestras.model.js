@@ -206,20 +206,21 @@ function listarproductossap(aux, result) {
             T0."ItemName" as "nombre",
             (SELECT T1."Price" FROM "EC_SBO_MINERVA_PRO"."ITM1" T1 WHERE T1."PriceList" = 2 and T1."ItemCode" = T0."ItemCode"  ) as PVPMIN,
             T1."Rate", 
-            T1."Code", 
+            T1."Code",
+            T0."AvgPrice"/0.85 as COSTO, 
             'SAP' as "origen" 
             FROM "EC_SBO_MINERVA_PRO".OITM T0
-            INNER JOIN "EC_SBO_MINERVA_PRO".OSTC T1 on T0."TaxCodeAR"=T1."Code"   
+            INNER JOIN "EC_SBO_MINERVA_PRO"."OSTC" T1 on T0."TaxCodeAR"=T1."Code"   
             WHERE  T0."QryGroup14" = 'Y'
             AND (
-        T0."ItmsGrpCod" IN (
-            101,112,125,102,126,113,128,
-            114,115,129,116,127,123,124
-        )
-        OR T0."ItemCode" IN (
-            'MAP002','MAP004','MAP005','MAP006', 'MAP007'
-        )
-    ) 
+                T0."ItmsGrpCod" IN (
+                    101,112,125,102,126,113,128,
+                    114,115,129,116,127,123,124
+                )
+                OR T0."ItemCode" IN (
+                    'MAP002','MAP004','MAP005','MAP006','MAP007'
+                )
+            ) 
             ORDER BY T0."ItemName" asc;
         `;
 
@@ -820,8 +821,8 @@ function stockproductosap(itemcode) {
         let query = `
            SELECT T0."ItemCode", 
            T0."ItemName", 
-           (SELECT (T2."OnHand" - T2."IsCommited")  FROM "EC_SBO_MINERVA_PRO".OITW T2 where T2."ItemCode" = T0."ItemCode" and T2."WhsCode" = 'Q01') as BUIO, 
-           (SELECT (T2."OnHand" - T2."IsCommited") FROM "EC_SBO_MINERVA_PRO".OITW T2 where T2."ItemCode" = T0."ItemCode" and T2."WhsCode" = 'G01') as BGYE, 
+           (SELECT (T2."OnHand" - T2."IsCommited")  FROM "EC_SBO_MINERVA_PRO".OITW T2 where T2."ItemCode" = T0."ItemCode" and T2."WhsCode" = 'MUEQ') as BUIO, 
+           (SELECT (T2."OnHand" - T2."IsCommited") FROM "EC_SBO_MINERVA_PRO".OITW T2 where T2."ItemCode" = T0."ItemCode" and T2."WhsCode" = 'MUEG') as BGYE, 
            (SELECT (T2."OnHand" - T2."IsCommited")  FROM "EC_SBO_MINERVA_PRO".OITW T2 where T2."ItemCode" = T0."ItemCode" and T2."WhsCode" = 'RQ1') as RUIO, 
            (SELECT (T2."OnHand" - T2."IsCommited")  FROM "EC_SBO_MINERVA_PRO".OITW T2 where T2."ItemCode" = T0."ItemCode" and T2."WhsCode" = 'RG1') as RGYE
            FROM "EC_SBO_MINERVA_PRO".OITM T0 
@@ -1084,7 +1085,7 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
                 //Se revisa de que bodega se va a realizar el despacho y de que ciudad
                 if (item.ciudadsalida == 'UIO') {
                     if (item.bodegadespacho == 'SAP') {
-                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'Q01', 'RQ1');
+                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'MUEQ', 'RQ1');
                     } else if (item.bodegadespacho == 'CRM') {
                         if (item.idproductosap != null) {
                             item.listadolotes = await obtenerstockproductoscrm(item.idproductosap, item.ciudadsalida);
@@ -1095,7 +1096,7 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
                     }
                 } else if (item.ciudadsalida == 'GYE') {
                     if (item.bodegadespacho == 'SAP') {
-                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'G01', 'RG1');
+                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'MUEG', 'RG1');
                     } else if (item.bodegadespacho == 'CRM') {
                         if (item.idproductosap != null) {
                             item.listadolotes = await obtenerstockproductoscrm(item.idproductosap, item.ciudadsalida);
@@ -1112,7 +1113,7 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
                 //Se revisa de que bodega se va a realizar el despacho y de que ciudad
                 if (item.ciudadsalida == 'UIO') {
                     if (item.bodegadespacho == 'SAP') {
-                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'Q01', 'RQ1');
+                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'MUEQ', 'RQ1');
                     } else if (item.bodegadespacho == 'CRM') {
                         if (item.idproductosap != null) {
                             item.listadolotes = await obtenerstockproductoscrm(item.idproductosap, item.ciudadsalida);
@@ -1123,7 +1124,7 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
                     }
                 } else if (item.ciudadsalida == 'GYE') {
                     if (item.bodegadespacho == 'SAP') {
-                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'G01', 'RG1');
+                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'MUEG', 'RG1');
                     } else if (item.bodegadespacho == 'CRM') {
                         if (item.idproductosap != null) {
                             item.listadolotes = await obtenerstockproductoscrm(item.idproductosap, item.ciudadsalida);
@@ -1143,7 +1144,7 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
                 //Se revisa de que bodega se va a realizar el despacho y de que ciudad
                 if (item.ciudadsalida == 'UIO') {
                     if (item.bodegadespacho == 'SAP') {
-                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'Q01', 'RQ1');
+                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'MUEQ', 'RQ1');
                     } else if (item.bodegadespacho == 'CRM') {
                         if (item.idproductosap != null) {
                             item.listadolotes = await obtenerstockproductoscrm(item.idproductosap, item.ciudadsalida);
@@ -1154,7 +1155,7 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
                     }
                 } else if (item.ciudadsalida == 'GYE') {
                     if (item.bodegadespacho == 'SAP') {
-                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'G01', 'RG1');
+                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'MUEG', 'RG1');
                     } else if (item.bodegadespacho == 'CRM') {
                         if (item.idproductosap != null) {
                             item.listadolotes = await obtenerstockproductoscrm(item.idproductosap, item.ciudadsalida);
@@ -1171,7 +1172,7 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
                 //Se revisa de que bodega se va a realizar el despacho y de que ciudad
                 if (item.ciudadsalida == 'UIO') {
                     if (item.bodegadespacho == 'SAP') {
-                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'Q01', 'RQ1');
+                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'MUEQ', 'RQ1');
                     } else if (item.bodegadespacho == 'CRM') {
                         if (item.idproductosap != null) {
                             item.listadolotes = await obtenerstockproductoscrm(item.idproductosap, item.ciudadsalida);
@@ -1182,7 +1183,7 @@ muestras.listarsolicitudesapreparar = async function (datos, result) {
                     }
                 } else if (item.ciudadsalida == 'GYE') {
                     if (item.bodegadespacho == 'SAP') {
-                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'G01', 'RG1');
+                        item.listadolotes = await obtenerstockproductossap(item.idproductosap, 'MUEG', 'RG1');
                     } else if (item.bodegadespacho == 'CRM') {
                         if (item.idproductosap != null) {
                             item.listadolotes = await obtenerstockproductoscrm(item.idproductosap, item.ciudadsalida);
@@ -1309,14 +1310,15 @@ muestras.registrarsalidastock = async function (datos, result) {
         if (datos.bodegadespacho == 'SAP') {
             const productossap = await listarproductossap();
 	    const producto = productossap.find(p => p.codigo === datos.idproductosap);
+            if (!producto) {
+                throw new Error(`El producto (${datos.idproductosap}) a despachar se encuentra inactivo o no está disponible para venta en SAP.`);
+            }
             let aux = {
                 "ItemCode": datos.idproductosap,
                 "Quantity": cantSap,
-                "TaxCode": productossap.find(p => p.codigo === datos.idproductosap).Code,
-                "UnitPrice": producto
-                    ? (producto.PVPMIN > 0 ? producto.PVPMIN : producto.COSTO)
-                    : 0,
-                "WarehouseCode": datos.ciudadsalida == 'UIO' ? 'Q01' : 'G01'
+                "TaxCode": producto.Code,
+                "UnitPrice": producto.PVPMIN > 0 ? producto.PVPMIN : producto.COSTO,
+                "WarehouseCode": datos.ciudadsalida == 'UIO' ? 'MUEQ' : 'MUEG'
             }
             console.log(aux);
 
@@ -1406,6 +1408,16 @@ async function ingresaractualizarpedido(producto, auxciudad) {
         const productossap = await listarproductossap();
         //Obtengo el pedido que ya se encuentra registrado
         const pedidoregistrado = await obtenerordendecompra(iddocumento[0]["DocEntry"]);
+
+        // Validar si existe algún producto inactivo o no disponible en las líneas de la orden abierta de SAP
+        const prodsInactivos = pedidoregistrado.DocumentLines.filter(
+            p => !productossap.some(ps => ps.codigo === p.ItemCode)
+        );
+        if (prodsInactivos.length > 0) {
+            const codigosInactivos = [...new Set(prodsInactivos.map(p => p.ItemCode))].join(', ');
+            throw new Error(`Existe un producto inactivo (${codigosInactivos}) en la orden de muestras de Minerva en SAP. Por favor verifique o active el producto en SAP para continuar.`);
+        }
+
         //Busco dentro de la pedido registrado si ya existe el producto que quiero ingresar.
         const productoregistrado = pedidoregistrado.DocumentLines.find(p => p.ItemCode === datosempresa.DocumentLines[0].ItemCode);
         //Recorro el DocumentLines para ver si existe,
@@ -1413,7 +1425,10 @@ async function ingresaractualizarpedido(producto, auxciudad) {
 
         if (productoregistrado) {
             for (let item of pedidoregistrado.DocumentLines) {
-                item.UnitPrice = productossap.find(p => p.codigo === item.ItemCode).PVPMIN; //Actualizo el precio Minimo de las lineas ingresadas por si acaso haya cambiado la lista de precios.
+                const prodEncontrado = productossap.find(p => p.codigo === item.ItemCode);
+                if (prodEncontrado && prodEncontrado.PVPMIN !== undefined && prodEncontrado.PVPMIN !== null) {
+                    item.UnitPrice = prodEncontrado.PVPMIN; //Actualizo el precio Minimo si existe en la lista
+                }
                 if (item.ItemCode == datosempresa.DocumentLines[0].ItemCode) {
                     item.Quantity += (datosempresa.DocumentLines[0].Quantity); //Encuentro la coincidencia dentro de la orden de venta y su la cantidad del producto.
                 }
@@ -1423,7 +1438,10 @@ async function ingresaractualizarpedido(producto, auxciudad) {
            
             for (let item of pedidoregistrado.DocumentLines) {
                 if (item.ItemCode != datosempresa.DocumentLines[0].ItemCode) {
-                    item.UnitPrice = productossap.find(p => p.codigo === item.ItemCode).PVPMIN;
+                    const prodEncontrado = productossap.find(p => p.codigo === item.ItemCode);
+                    if (prodEncontrado && prodEncontrado.PVPMIN !== undefined && prodEncontrado.PVPMIN !== null) {
+                        item.UnitPrice = prodEncontrado.PVPMIN;
+                    }
                     datosempresa.DocumentLines.push(item);
                 }
             }

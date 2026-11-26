@@ -490,10 +490,10 @@ exports.prepararmuestra = function (req, res) {
         //LLamo al metodo del modelo y lo ejecuto.
         muestras.registrarsalidastock(aux, function (err, respuesta) {
             if (err) {
-                console.error("Error al ingresar producto:", err);
-                return res.status(500).json({
+                console.error("Error al preparar muestra:", err);
+                return res.status(400).json({
                     error: true,
-                    message: "Error interno del servidor"
+                    message: err.message || "Error al realizar el registro de las salidas de stock"
                 });
             }
             return res.status(200).json({
@@ -505,7 +505,7 @@ exports.prepararmuestra = function (req, res) {
         console.error("Error inesperado:", error);
         return res.status(500).json({
             error: true,
-            message: "Error inesperado del servidor"
+            message: error.message || "Error inesperado del servidor"
         });
     }
 }
@@ -1113,5 +1113,31 @@ exports.enviarmuestrabodega = function (req, res) {
     } catch (error) {
         console.error("Error inesperado:", error);
         return res.status(500).json({ error: true, message: "Error inesperado del servidor" });
+    }
+};
+
+//controller para obtener el personal de bodega por ciudad AT
+exports.obtenerpersonalbodega = function (req, res) {
+    try {
+        const ciudad = req.params?.ciudad || req.query?.ciudad || req.body?.ciudad || 'TODO';
+        muestras.obtenerpersonalbodega(ciudad, function (err, respuesta) {
+            if (err) {
+                console.error("Error al obtener personal de bodega:", err);
+                return res.status(500).json({
+                    error: true,
+                    message: "Error interno del servidor"
+                });
+            }
+            return res.status(200).json({
+                error: false,
+                data: respuesta
+            });
+        });
+    } catch (error) {
+        console.error("Error inesperado:", error);
+        return res.status(500).json({
+            error: true,
+            message: "Error inesperado del servidor"
+        });
     }
 };

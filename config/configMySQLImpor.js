@@ -10,7 +10,10 @@ const dbConnImpor = mysql.createConnection({
   connectTimeout: 20000
 });
 dbConnImpor.connect(function(err) {
-  if (err) throw err;
-  console.log("Database Connected!");
+  if (err) {
+    console.error("Error al conectar a MySQL Importaciones (192.168.40.25:3306):", err.message);
+  } else {
+    console.log("Database Connected to informebodega!");
+  }
 });
 module.exports = dbConnImpor;

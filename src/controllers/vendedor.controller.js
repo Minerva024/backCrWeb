@@ -463,12 +463,12 @@ exports.ingresoleadferia = function (req, res) {
 exports.listarcotizaciones = function (req, res) {
     const body = req.body;
     if (req.body.constructor === Object && Object.keys(req.body).length === 0) {
-        res.status(400).send({ error: true, message: 'Por favor ingrese todos los campos.' });
+        return res.status(400).send({ error: true, message: 'Por favor ingrese todos los campos.' });
     } else {
         Vendedor.listarcotizaciones(body, function (err, respuesta) {
             if (err)
-                res.send(err);
-            res.json(respuesta);
+                return res.status(500).send(err);
+            return res.json(respuesta);
         })
     }
 }
@@ -477,12 +477,12 @@ exports.obtenerpdfcotizacion = function (req, res) {
     const body = req.body;
     let idcotizacion = body['idcotizacion'];
     if (req.body.constructor === Object && Object.keys(req.body).length === 0) {
-        res.status(400).send({ error: true, message: 'Por favor ingrese todos los campos.' });
+        return res.status(400).send({ error: true, message: 'Por favor ingrese todos los campos.' });
     } else {
         Vendedor.generarcotizacion(idcotizacion, function (err, respuesta) {
             if (err)
-                res.send(err);
-            res.json(respuesta);
+                return res.status(500).send(err);
+            return res.json(respuesta);
         })
     }
 }
@@ -491,12 +491,12 @@ exports.obtenerpedidosstatusautorizacion = function (req, res) {
     const body = req.body;
     let slpcode = body['SlpCode'];
     if (req.body.constructor === Object && Object.keys(req.body).length === 0) {
-        res.status(400).send({ error: true, message: 'Por favor ingrese todos los campos.' });
+        return res.status(400).send({ error: true, message: 'Por favor ingrese todos los campos.' });
     } else {
         Vendedor.listarpedidosstatusautorizacion(slpcode, function (err, respuesta) {
             if (err)
-                res.send(err);
-            res.json(respuesta);
+                return res.status(500).send(err);
+            return res.json(respuesta);
         })
     }
 }
@@ -504,12 +504,12 @@ exports.obtenerpedidosstatusautorizacion = function (req, res) {
 exports.rechazarcotizacion = function (req, res) {
     const body = req.body;
     if (req.body.constructor === Object && Object.keys(req.body).length === 0) {
-        res.status(400).send({ error: true, message: 'Por favor ingrese todos los campos.' });
+        return res.status(400).send({ error: true, message: 'Por favor ingrese todos los campos.' });
     } else {
         Vendedor.rechazarcotizacion(body, function (err, respuesta) {
             if (err)
-                res.send(err);
-            res.json(respuesta);
+                return res.status(500).send(err);
+            return res.json(respuesta);
         })
     }
 }
@@ -607,3 +607,75 @@ exports.obtenerlibroslegalescrismo = function (req, res) {
         });
     }
 }
+
+// Obtener versión oficial de la aplicación móvil
+exports.obtenerversion = function (req, res) {
+    const host = req.headers.host;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    res.json({
+        versionCode: 20261125,
+        versionName: "2026.11.25",
+        urlApk: `${protocol}://${host}/api/v1/vendedor/descargar-apk`,
+        mensaje: "Nueva versión oficial disponible con Biometría, Bodega Gualo y Costo Futuro.",
+        obligatorio: false
+    });
+};
+
+// Descargar archivo APK oficial
+const path = require('path');
+const fs = require('fs');
+
+exports.descargarApk = function (req, res) {
+    // Busca el APK en carpetas estándar tanto en producción como en desarrollo
+    const candidateDirs = [
+        path.resolve(__dirname, '../../uploads/apk'),
+        path.resolve(__dirname, '../../apk'),
+        path.resolve(__dirname, '../../'),               // /home/minerva/backcrmweb/
+        path.resolve(__dirname, '../../../APKs_Generadas')
+    ];
+
+    let apkFile = null;
+
+    // 1. Buscar primero archivos con nombres conocidos en orden de versión descendente
+    const prioritizedNames = [
+        'MinervaSalesPro-v2026.11.25.apk',
+        'MinervaSalesPro-v2026.11.24.apk',
+        'MinervaSalesPro.apk',
+        'app-release.apk',
+        'MinervaSalesPro-v2026.11.18.apk',
+        'MinervaSalesPro-v2026.11.18-QA.apk'
+    ];
+
+    for (const dir of candidateDirs) {
+        if (!fs.existsSync(dir)) continue;
+        for (const name of prioritizedNames) {
+            const p = path.join(dir, name);
+            if (fs.existsSync(p)) {
+                apkFile = p;
+                break;
+            }
+        }
+        if (apkFile) break;
+    }
+
+    // 2. Si no coincide el nombre exacto, toma el archivo .apk que encuentre en alguna de esas carpetas
+    if (!apkFile) {
+        for (const dir of candidateDirs) {
+            if (!fs.existsSync(dir)) continue;
+            try {
+                const files = fs.readdirSync(dir).filter(f => f.toLowerCase().endsWith('.apk'));
+                if (files.length > 0) {
+                    apkFile = path.join(dir, files[0]);
+                    break;
+                }
+            } catch (e) {}
+        }
+    }
+
+    if (apkFile && fs.existsSync(apkFile)) {
+        res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+        return res.download(apkFile, 'MinervaSalesPro.apk');
+    } else {
+        return res.status(404).json({ error: true, message: 'Archivo APK no encontrado en el servidor en backCrWeb/uploads/apk/' });
+    }
+};

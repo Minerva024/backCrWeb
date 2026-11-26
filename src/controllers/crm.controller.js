@@ -295,12 +295,12 @@ exports.obtenerpdfcotizacion = function (req, res) {
     const body = req.body;
     let idcotizacion = body['idcotizacion'];
     if (req.body.constructor === Object && Object.keys(req.body).length === 0) {
-        res.status(400).send({ error: true, message: 'Por favor ingrese todos los campos.' });
+        return res.status(400).send({ error: true, message: 'Por favor ingrese todos los campos.' });
     } else {
         Crm.generarcotizacionweb(idcotizacion, function (err, respuesta) {
             if (err)
-                res.send(err);
-            res.json(respuesta);
+                return res.status(500).send(err);
+            return res.json(respuesta);
         })
     }
 }

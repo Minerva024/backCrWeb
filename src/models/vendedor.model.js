@@ -27,7 +27,13 @@ Vendedor.loginvendedor = async function (body, result) {
             if (Object.entries(json).length === 0) {
                 result(null, 'FALSE');
             } else {
-                if (json[0] != undefined) {
+                if (json[0] != undefined && json[0][0]) {
+                    // Validar contraseña si se envía en la petición
+                    if (body["contrasenia"] !== undefined && body["contrasenia"] !== null && body["contrasenia"] !== "") {
+                        if (String(json[0][0]['contrasenia']).trim() !== String(body["contrasenia"]).trim()) {
+                            return result(null, 'PASSWORD_INCORRECT');
+                        }
+                    }
                     let respuesta = json[0][0]['mail'];
                     var queryconsultahana = "SELECT T0.\"SlpCode\", T0.\"SlpName\", T0.\"Email\", T0.\"Mobil\" FROM \"EC_SBO_MINERVA_PRO\".\"OSLP\" T0 WHERE T0.\"Email\"='" + respuesta + "'";
                     const conn = hana.createConnection();
@@ -48,6 +54,11 @@ Vendedor.loginvendedor = async function (body, result) {
                                     }
                                     console.log('Conexión cerrada.');
                                 });
+                                if (res && res[0]) {
+                                    res[0]['nombres'] = json[0][0]['nombres'] || '';
+                                    res[0]['apellidos'] = json[0][0]['apellidos'] || '';
+                                    res[0]['usuario'] = json[0][0]['usuario'] || body["cedula"];
+                                }
                                 result(null, res);
                             });
                         }
@@ -121,7 +132,7 @@ Vendedor.listarclientesvendedor = function (auxslpcode, result) {
 // Listado de producto activos de SAP.
 Vendedor.listarproductos = function (result) {
     let productos = [];
-    var queryconsultahana = "SELECT T0.\"ItemCode\", T0.\"ItemName\", T3.\"ItmsGrpNam\", T1.\"Code\", T1.\"Rate\", (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'Q01') as BUIO, (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'G01') as BGYE, T0.\"InvntryUom\", (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 2 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPMIN, (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 5 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPMAX, (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 6 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPESP FROM \"EC_SBO_MINERVA_PRO\".OITM T0 INNER JOIN \"EC_SBO_MINERVA_PRO\".\"OITB\" T3 on T3.\"ItmsGrpCod\" = T0.\"ItmsGrpCod\" INNER JOIN \"EC_SBO_MINERVA_PRO\".\"OSTC\" T1 on T0.\"TaxCodeAR\"=T1.\"Code\" WHERE T0.\"validFor\" = 'Y' AND T0.\"SellItem\" = 'Y' and ( T0.\"ItmsGrpCod\" = 101 or T0.\"ItmsGrpCod\" = 112 or T0.\"ItmsGrpCod\" = 125 or T0.\"ItmsGrpCod\" = 102 or T0.\"ItmsGrpCod\" = 126 or T0.\"ItmsGrpCod\" = 113 or T0.\"ItmsGrpCod\" = 128 or T0.\"ItmsGrpCod\" = 114 or T0.\"ItmsGrpCod\" = 115 or T0.\"ItmsGrpCod\" = 129 or T0.\"ItmsGrpCod\" = 116 or T0.\"ItmsGrpCod\" = 127 or T0.\"ItmsGrpCod\" = 123 or T0.\"ItmsGrpCod\" = 124 ) ORDER BY T0.\"ItemName\" asc;";
+    var queryconsultahana ="SELECT T0.\"ItemCode\", T0.\"ItemName\", T3.\"ItmsGrpNam\", T1.\"Code\", T1.\"Rate\", (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'Q01') as BUIO,(SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'Q02') as GUIO, (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'G01') as BGYE, T0.\"InvntryUom\", (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 2 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPMIN, (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 5 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPMAX, (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 6 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPESP FROM \"EC_SBO_MINERVA_PRO\".OITM T0 INNER JOIN \"EC_SBO_MINERVA_PRO\".\"OITB\" T3 on T3.\"ItmsGrpCod\" = T0.\"ItmsGrpCod\" INNER JOIN \"EC_SBO_MINERVA_PRO\".\"OSTC\" T1 on T0.\"TaxCodeAR\"=T1.\"Code\" WHERE T0.\"validFor\" = 'Y' AND T0.\"SellItem\" = 'Y' and ( T0.\"ItmsGrpCod\" = 101 or T0.\"ItmsGrpCod\" = 112 or T0.\"ItmsGrpCod\" = 125 or T0.\"ItmsGrpCod\" = 102 or T0.\"ItmsGrpCod\" = 126 or T0.\"ItmsGrpCod\" = 113 or T0.\"ItmsGrpCod\" = 128 or T0.\"ItmsGrpCod\" = 114 or T0.\"ItmsGrpCod\" = 115 or T0.\"ItmsGrpCod\" = 129 or T0.\"ItmsGrpCod\" = 116 or T0.\"ItmsGrpCod\" = 127 or T0.\"ItmsGrpCod\" = 123 or T0.\"ItmsGrpCod\" = 124 ) ORDER BY T0.\"ItemName\" asc;";
     const conn = hana.createConnection();
     conn.connect(dbConnHana, function (err) {
         if (err) {
@@ -149,6 +160,7 @@ Vendedor.listarproductos = function (result) {
                         Code: element["Code"],
                         Rate: parseFloat(element["Rate"]),
                         BUIO: parseFloat(element["BUIO"]),
+                        GUIO: parseFloat(element["GUIO"]),
                         BGYE: parseFloat(element["BGYE"]),
                         PVPMIN: parseFloat(element["PVPMIN"]),
                         PVPMAX: parseFloat(element["PVPMAX"]),
@@ -170,7 +182,7 @@ Vendedor.listarproductos = function (result) {
 // Listado de producto activos de SAP.
 Vendedor.obtenerproducto = function (auxitemcode, result) {
     let productos = [];
-    var queryconsultahana = "SELECT T0.\"ItemCode\", T0.\"ItemName\", T3.\"ItmsGrpNam\", T1.\"Code\", T1.\"Rate\", T0.\"AvgPrice\", (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'Q01') as BUIO, (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'G01') as BGYE, (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'RQ1') as RUIO, (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'RG1') as RGYE, T0.\"InvntryUom\", (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 2 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPMIN, (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 5 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPMAX, (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 6 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPESP FROM \"EC_SBO_MINERVA_PRO\".OITM T0 INNER JOIN \"EC_SBO_MINERVA_PRO\".\"OITB\" T3 on T3.\"ItmsGrpCod\" = T0.\"ItmsGrpCod\" INNER JOIN \"EC_SBO_MINERVA_PRO\".\"OSTC\" T1 on T0.\"TaxCodeAR\"=T1.\"Code\" WHERE T0.\"ItemCode\" = '" + auxitemcode + "';";
+    var queryconsultahana = "SELECT T0.\"ItemCode\", T0.\"ItemName\", T3.\"ItmsGrpNam\", T1.\"Code\", T1.\"Rate\", T0.\"AvgPrice\",(SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'Q01') as BUIO,(SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'Q02') as GUIO, (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'G01') as BGYE, (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'RQ1') as RUIO, (SELECT T2.\"OnHand\"  FROM \"EC_SBO_MINERVA_PRO\".OITW T2 where T2.\"ItemCode\" = T0.\"ItemCode\" and T2.\"WhsCode\" = 'RG1') as RGYE, T0.\"InvntryUom\", (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 2 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPMIN, (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 5 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPMAX, (SELECT T1.\"Price\" FROM \"EC_SBO_MINERVA_PRO\".\"ITM1\" T1 WHERE T1.\"PriceList\" = 6 and T1.\"ItemCode\" = T0.\"ItemCode\"  ) as PVPESP FROM \"EC_SBO_MINERVA_PRO\".OITM T0 INNER JOIN \"EC_SBO_MINERVA_PRO\".\"OITB\" T3 on T3.\"ItmsGrpCod\" = T0.\"ItmsGrpCod\" INNER JOIN \"EC_SBO_MINERVA_PRO\".\"OSTC\" T1 on T0.\"TaxCodeAR\"=T1.\"Code\" WHERE T0.\"ItemCode\" = '" + auxitemcode + "';";
     const conn = hana.createConnection();
     conn.connect(dbConnHana, function (err) {
         if (err) {
@@ -198,6 +210,7 @@ Vendedor.obtenerproducto = function (auxitemcode, result) {
                         Code: element["Code"],
                         Rate: parseFloat(element["Rate"]),
                         BUIO: parseFloat(element["BUIO"]),
+                        GUIO: parseFloat(element["GUIO"]),
                         BGYE: parseFloat(element["BGYE"]),
                         PVPMIN: parseFloat(element["PVPMIN"]),
                         PVPMAX: parseFloat(element["PVPMAX"]),
@@ -215,7 +228,7 @@ Vendedor.obtenerproducto = function (auxitemcode, result) {
 // Listado de producto activos de SAP.
 Vendedor.obtenerimportacionesproducto = function (auxitemcode, result) {
     let productos = [];
-    var queryconsultahana = "SELECT T0.\"NumAtCard\" AS MI, T1.\"ItemCode\" AS CODIGO_ARTICULO, T2.\"ItemName\" AS ARTICULO, T1. \"Quantity\" AS CANTIDAD_UN, T0.\"DocDueDate\" AS FECHA_BODEGA, T0.\"U_Comment\" AS TIPO_FECHA, T0.\"U_DESTINY\" AS DESTINO FROM \"EC_SBO_MINERVA_PRO\".OPOR T0 INNER JOIN \"EC_SBO_MINERVA_PRO\".POR1 T1 ON T0.\"DocEntry\" = T1.\"DocEntry\" INNER JOIN \"EC_SBO_MINERVA_PRO\".OITM T2 ON T1.\"ItemCode\" = T2.\"ItemCode\" WHERE T0.\"DocStatus\" = 'O' and CAST(T0.\"U_Comment\" as NVARCHAR) = 'FC' and T1.\"ItemCode\" = '" + auxitemcode + "' ORDER BY T0.\"DocDueDate\" asc;";
+    var queryconsultahana = "SELECT T0.\"NumAtCard\" AS MI, T1.\"ItemCode\" AS CODIGO_ARTICULO, T2.\"ItemName\" AS ARTICULO, T1.\"FreeTxt\" AS COSTO, T1. \"Quantity\" AS CANTIDAD_UN, T0.\"DocDueDate\" AS FECHA_BODEGA, T0.\"U_Comment\" AS TIPO_FECHA, T0.\"U_DESTINY\" AS DESTINO FROM \"EC_SBO_MINERVA_PRO\".OPOR T0 INNER JOIN \"EC_SBO_MINERVA_PRO\".POR1 T1 ON T0.\"DocEntry\" = T1.\"DocEntry\" INNER JOIN \"EC_SBO_MINERVA_PRO\".OITM T2 ON T1.\"ItemCode\" = T2.\"ItemCode\" WHERE T0.\"DocStatus\" = 'O' and CAST(T0.\"U_Comment\" as NVARCHAR) = 'FC' and T1.\"ItemCode\" = '" + auxitemcode + "' ORDER BY T0.\"DocDueDate\" asc;";
     const conn = hana.createConnection();
     conn.connect(dbConnHana, function (err) {
         if (err) {
@@ -263,7 +276,7 @@ Vendedor.ingresareoferta = async function (oferta, result) {
             "ItemCode": element['ItemCode'],
             "Quantity": element['Quantity'],
             "UnitPrice": element['UnitPrice'],
-            "TaxCode": element['TaxCode']
+            "TaxCode": element['TaxCode'] || element['taxcode'] || element['Code'] || (Number(element['Rate']) === 0 ? 'IVA_EXE' : (Number(element['Rate']) === 5 ? 'IVA_5' : 'IVA15'))
         }
         itemofsap.push(aux);
     });
@@ -376,7 +389,8 @@ Vendedor.ingresarcotizacion = async function (oferta, result) {
                 ingresadocotizacion = true;
                 let contador = 0;
                 oferta["DocumentLines"].forEach(element => {
-                    var queryconsultamysql2 = "CALL ingresaritemcotizacion('" + element["ItemCode"] + "','" + element["ItemName"] + "'," + parseFloat(element["Quantity"]).toFixed(2) + "," + parseFloat(element["UnitPrice"]).toFixed(2) + "," + element["Rate"] + "," + json[0][0]["idcotizacion"] + ",'" + (element["TaxCode"] ? element["TaxCode"] : "") + "')";
+                    const taxCode = element["TaxCode"] || element["taxcode"] || element["Code"] || (Number(element["Rate"]) === 0 ? 'IVA_EXE' : (Number(element["Rate"]) === 5 ? 'IVA_5' : 'IVA15'));
+                    var queryconsultamysql2 = "CALL ingresaritemcotizacion('" + element["ItemCode"] + "','" + element["ItemName"] + "'," + parseFloat(element["Quantity"]).toFixed(2) + "," + parseFloat(element["UnitPrice"]).toFixed(2) + "," + element["Rate"] + "," + json[0][0]["idcotizacion"] + ",'" + taxCode + "')";
                     dbConnMySQL.query(queryconsultamysql2, async function (err, res) {
                         if (!err) {
                             var json = JSON.parse(JSON.stringify(res));
@@ -1325,24 +1339,27 @@ Vendedor.generarcotizacion = function (auxidcotizacion, result) {
     var queryString = "CALL obtenerdatoscotizacion(" + auxidcotizacion + ")";
     dbConnMySQL.query(queryString, async function (err, res) {
         if (err) {
-            result(err, null);
+            return result(err, null);
         }
         else {
-            var json = JSON.parse(JSON.stringify(res));
-            if (Object.entries(json).length === 0) {
-                result(null, false);
-            } else {
+            try {
+                var json = JSON.parse(JSON.stringify(res));
+                if (!json || !json[0] || json[0].length === 0) {
+                    return result(null, false);
+                }
                 let respuesta = json;
                 let subtotal = 0;
                 let impuestos = 0;
                 let table = "";
                 //Genero cada una de las filas de la tabla de los productos.
-                respuesta[1].forEach((element) => {
+                if (respuesta[1] && Array.isArray(respuesta[1])) {
+                    respuesta[1].forEach((element) => {
                     let aux = "<tr><td>" + element["itemname"] + "</td><td>" + element["quantity"] + "</td><td>" + element["unitprice"] + "</td><td>" + element["tax"] + "</td><td>" + (parseFloat(element["quantity"]) * parseFloat(element["unitprice"])).toFixed(2) + "</td></tr>";
                     table += aux;
                     impuestos = impuestos + (parseFloat(element["quantity"]) * parseFloat(element["unitprice"]) * (parseFloat(element["tax"]) / 100));
                     subtotal = subtotal + (parseFloat(element["quantity"]) * parseFloat(element["unitprice"]));
-                });
+                    });
+                }
                 //Declaro toa la estrutura del PDF que se requiere.
                 let bodyhtml = `
                 <head>
@@ -1481,7 +1498,10 @@ Vendedor.generarcotizacion = function (auxidcotizacion, result) {
                     "codigopdf": bodyhtml
                 }
 
-                result(null, auxresp);
+                return result(null, auxresp);
+            } catch (errGen) {
+                console.error("Error al generar cotización:", errGen);
+                return result(errGen, null);
             }
         }
     });
@@ -1706,7 +1726,7 @@ Vendedor.aprobarcotizacion = function (auxidcotizacion, result) {
                         "ItemCode": element['itemcode'],
                         "Quantity": element['quantity'],
                         "UnitPrice": element['unitprice'],
-                        "TaxCode": element['taxcode'] || element['TaxCode'] || (element['tax'] == 0 ? 'IVA_EXE' : 'IVA15')
+                        "TaxCode": element['taxcode'] || element['TaxCode'] || (Number(element['tax']) === 0 ? 'IVA_EXE' : (Number(element['tax']) === 5 ? 'IVA_5' : 'IVA15'))
                     }
                     itemofsap.push(aux);
                 });

@@ -1,3 +1,6 @@
 ﻿node_modules/
 .env
 src/ConexionFireBase/crmovil-e9313-firebase-adminsdk-67z7z-6374f381c5.json
+uploads/**/*.apk
+uploads/*.apk
+

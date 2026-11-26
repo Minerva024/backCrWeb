@@ -4,7 +4,7 @@
   "description": "Back para la App Móvil del area comercial",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test test/",
     "start": "nodemon server",
     "start:local": "nodemon server.local.js"
   },

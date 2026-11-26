@@ -419,20 +419,25 @@ crm.obtencionhorariosentrega = function (result) {
         }
     });
 }
-//Verificar si el cliente ya existe en SAP HANA y su estado (Activo/Inactivo)
+//Verificar si el socio de negocio (Cliente, Lead o Proveedor) ya existe en SAP HANA y su estado (Activo/Inactivo)
 crm.verificarexistenciaclientehana = function (identificacion, result) {
     if (!identificacion) {
         return result(null, { existe: false });
     }
     let idLimpia = ('' + identificacion).trim();
-    let cardCode = idLimpia.startsWith('C') ? idLimpia : 'C' + idLimpia;
+    let cardCodeC = idLimpia.startsWith('C') ? idLimpia : 'C' + idLimpia;
+    let cardCodeP = idLimpia.startsWith('P') ? idLimpia : 'P' + idLimpia;
+    let cardCodeL = idLimpia.startsWith('L') ? idLimpia : 'L' + idLimpia;
 
-    var queryconsultahana = `SELECT TOP 1 T0."CardCode", T0."CardName", T0."LicTradNum", T0."validFor", T0."frozenFor", T0."FrozenComm", T0."CardType" FROM "EC_SBO_MINERVA_PRO".OCRD T0 WHERE T0."CardCode" = '${cardCode}' OR T0."LicTradNum" = '${idLimpia}'`;
+    // Consultamos todos los socios de negocio con este RUC/Cédula o códigos C/P/L
+    var queryconsultahana = `SELECT T0."CardCode", T0."CardName", T0."LicTradNum", T0."validFor", T0."frozenFor", T0."FrozenComm", T0."CardType" 
+FROM "EC_SBO_MINERVA_PRO".OCRD T0 
+WHERE T0."CardCode" IN ('${cardCodeC}', '${cardCodeP}', '${cardCodeL}') OR T0."LicTradNum" = '${idLimpia}'`;
 
     const conn = hana.createConnection();
     conn.connect(dbConnHana, function (err) {
         if (err) {
-            console.error('Error conectando a HANA para verificar cliente:', err);
+            console.error('Error conectando a HANA para verificar cliente/lead:', err);
             return result(err, null);
         }
         conn.exec(queryconsultahana, function (err, res) {
@@ -440,27 +445,86 @@ crm.verificarexistenciaclientehana = function (identificacion, result) {
                 if (errDisc) console.error('Error cerrando conexión HANA:', errDisc);
             });
             if (err) {
-                console.error('Error ejecutando consulta de cliente en HANA: ', err.message, err);
+                console.error('Error ejecutando consulta de socio de negocio en HANA: ', err.message, err);
                 return result(err, null);
             }
             if (!res || res.length === 0) {
                 return result(null, { existe: false });
             }
 
-            let cliente = res[0];
-            let inactivo = cliente.frozenFor === 'Y' || cliente.validFor === 'N';
+            // Distinguir si existe como Cliente ('C'), Lead ('L') o Proveedor ('S')
+            const registroCliente = res.find(s => s.CardType === 'C' || (s.CardCode && s.CardCode.startsWith('C')));
+            const registroLead = res.find(s => s.CardType === 'L' || (s.CardCode && s.CardCode.startsWith('L')));
+            const registroProveedor = res.find(s => s.CardType === 'S' || (s.CardCode && s.CardCode.startsWith('P')));
 
-            let respuesta = {
-                existe: true,
-                inactivo: inactivo,
-                cardCode: cliente.CardCode,
-                cardName: cliente.CardName,
-                licTradNum: cliente.LicTradNum,
-                motivo: cliente.FrozenComm || '',
-                cardType: cliente.CardType,
-                mensaje: `El cliente ya se encuentra registrado en SAP y pertenece a : ${cliente.CardCode}, ${cliente.CardName}. Estado: ${inactivo ? 'Inactivo' : 'Activo'}`
-            };
-            result(null, respuesta);
+            // Si ya existe como Cliente
+            if (registroCliente) {
+                let inactivo = registroCliente.frozenFor === 'Y' || registroCliente.validFor === 'N';
+                let estadoTexto = inactivo ? 'Inactivo' : 'Activo';
+                let motivoTexto = (inactivo && registroCliente.FrozenComm) ? ` (Motivo: ${registroCliente.FrozenComm})` : '';
+                return result(null, {
+                    existe: true,
+                    existeComoCliente: true,
+                    esProveedor: false,
+                    inactivo: inactivo,
+                    cardCode: registroCliente.CardCode,
+                    cardName: registroCliente.CardName,
+                    licTradNum: registroCliente.LicTradNum,
+                    motivo: registroCliente.FrozenComm || '',
+                    cardType: 'C',
+                    tipoSocio: 'Cliente',
+                    mensaje: `El Cliente ya se encuentra registrado en SAP y pertenece a : ${registroCliente.CardCode}, ${registroCliente.CardName}. Estado: ${estadoTexto}${motivoTexto}`
+                });
+            }
+
+            // Si existe como Lead
+            if (registroLead) {
+                let inactivo = registroLead.frozenFor === 'Y' || registroLead.validFor === 'N';
+                let estadoTexto = inactivo ? 'Inactivo' : 'Activo';
+                let motivoTexto = (inactivo && registroLead.FrozenComm) ? ` (Motivo: ${registroLead.FrozenComm})` : '';
+                return result(null, {
+                    existe: true,
+                    existeComoCliente: true,
+                    esProveedor: false,
+                    inactivo: inactivo,
+                    cardCode: registroLead.CardCode,
+                    cardName: registroLead.CardName,
+                    licTradNum: registroLead.LicTradNum,
+                    motivo: registroLead.FrozenComm || '',
+                    cardType: 'L',
+                    tipoSocio: 'Lead',
+                    mensaje: `El Lead ya se encuentra registrado en SAP y pertenece a : ${registroLead.CardCode}, ${registroLead.CardName}. Estado: ${estadoTexto}${motivoTexto}`
+                });
+            }
+
+            // Si SOLAMENTE existe como Proveedor ('S' o 'P...')
+            if (registroProveedor) {
+                let inactivo = registroProveedor.frozenFor === 'Y' || registroProveedor.validFor === 'N';
+                let estadoTexto = inactivo ? 'Inactivo' : 'Activo';
+                let motivoTexto = (inactivo && registroProveedor.FrozenComm) ? ` (Motivo: ${registroProveedor.FrozenComm})` : '';
+                return result(null, {
+                    existe: false,               // NO bloquea la creación de cliente
+                    existeComoCliente: false,     // Puede crearse como cliente
+                    esProveedor: true,           // Flag informativo
+                    inactivoProveedor: inactivo,
+                    proveedorData: {
+                        cardCode: registroProveedor.CardCode,
+                        cardName: registroProveedor.CardName,
+                        licTradNum: registroProveedor.LicTradNum,
+                        estado: estadoTexto,
+                        inactivo: inactivo,
+                        motivo: registroProveedor.FrozenComm || ''
+                    },
+                    cardCode: registroProveedor.CardCode,
+                    cardName: registroProveedor.CardName,
+                    licTradNum: registroProveedor.LicTradNum,
+                    cardType: 'S',
+                    tipoSocio: 'Proveedor',
+                    mensaje: `Aviso: El RUC está registrado en SAP como Proveedor (${registroProveedor.CardCode} - ${registroProveedor.CardName}, Estado: ${estadoTexto}${motivoTexto}). Se procederá a crear como nuevo Cliente (C${idLimpia}).`
+                });
+            }
+
+            return result(null, { existe: false });
         });
     });
 };
@@ -475,9 +539,9 @@ crm.registrarclientesap = async function (auxcliente, result) {
         auxcliente.U_Documentacion_Cliente = '02';
     }
 
-    // Comprobación preventiva en HANA para evitar error de socio de negocio existente o inactivo
+    // Comprobación preventiva en HANA: Solo bloquea si ya existe como CLIENTE o LEAD (no si es proveedor)
     crm.verificarexistenciaclientehana(auxcliente.FederalTaxID || auxcliente.CardCode, async function (errVerif, resVerif) {
-        if (!errVerif && resVerif && resVerif.existe) {
+        if (!errVerif && resVerif && (resVerif.existeComoCliente || resVerif.existe)) {
             console.warn("Intento de registrar cliente existente/inactivo en SAP:", resVerif);
             return result(null, {
                 exito: false,
@@ -2064,13 +2128,14 @@ crm.generarcotizacionweb = function (auxidcotizacion, result) {
     var queryString = "CALL obtenerdatoscotizacion(" + auxidcotizacion + ")";
     dbConnMySQL.query(queryString, async function (err, res) {
         if (err) {
-            result(err, null);
+            return result(err, null);
         }
         else {
-            var json = JSON.parse(JSON.stringify(res));
-            if (Object.entries(json).length === 0) {
-                result(null, false);
-            } else {
+            try {
+                var json = JSON.parse(JSON.stringify(res));
+                if (!json || !json[0] || json[0].length === 0) {
+                    return result(null, false);
+                }
                 let respuesta = json;
                 //console.log(respuesta[0][0]);
 
@@ -2078,12 +2143,14 @@ crm.generarcotizacionweb = function (auxidcotizacion, result) {
                 let impuestos = 0;
                 let table = "";
                 //Genero cada una de las filas de la tabla de los productos.
-                respuesta[1].forEach((element) => {
+                if (respuesta[1] && Array.isArray(respuesta[1])) {
+                    respuesta[1].forEach((element) => {
                     let aux = "<tr><td>" + element["itemname"] + "</td><td>" + element["quantity"] + "</td><td>" + element["unitprice"] + "</td><td>" + element["tax"] + "</td><td>" + (parseFloat(element["quantity"]) * parseFloat(element["unitprice"])).toFixed(2) + "</td></tr>";
                     table += aux;
                     impuestos = impuestos + (parseFloat(element["quantity"]) * parseFloat(element["unitprice"]) * (parseFloat(element["tax"]) / 100));
                     subtotal = subtotal + (parseFloat(element["quantity"]) * parseFloat(element["unitprice"]));
-                });
+                    });
+                }
                 //Declaro toa la estrutura del PDF que se requiere.
                 let bodyhtml = `
                 <head>
@@ -2256,7 +2323,10 @@ crm.generarcotizacionweb = function (auxidcotizacion, result) {
                     "codigopdf": bodyhtml
                 }*/
 
-                result(null, pdfBase64);
+                return result(null, pdfBase64);
+            } catch (errGen) {
+                console.error("Error al generar cotización web:", errGen);
+                return result(errGen, null);
             }
         }
     });
@@ -2354,6 +2424,7 @@ crm.obtenerproducto = function (body, result) {
 SELECT 
     T0."ItemCode", T0."ItemName", T3."ItmsGrpNam", T1."Code", T1."Rate", T0."AvgPrice",
     (SELECT T2."OnHand" FROM "EC_SBO_MINERVA_PRO".OITW T2 WHERE T2."ItemCode" = T0."ItemCode" AND T2."WhsCode" = 'Q01') AS BUIO,
+    (SELECT T2."OnHand" FROM "EC_SBO_MINERVA_PRO".OITW T2 WHERE T2."ItemCode" = T0."ItemCode" AND T2."WhsCode" = 'Q02') AS GUIO,
     (SELECT T2."OnHand" FROM "EC_SBO_MINERVA_PRO".OITW T2 WHERE T2."ItemCode" = T0."ItemCode" AND T2."WhsCode" = 'G01') AS BGYE,
     (SELECT T2."OnHand" FROM "EC_SBO_MINERVA_PRO".OITW T2 WHERE T2."ItemCode" = T0."ItemCode" AND T2."WhsCode" = 'RQ1') AS RUIO,
     (SELECT T2."OnHand" FROM "EC_SBO_MINERVA_PRO".OITW T2 WHERE T2."ItemCode" = T0."ItemCode" AND T2."WhsCode" = 'RG1') AS RGYE,

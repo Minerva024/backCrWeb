@@ -5,7 +5,12 @@
 		},
 		{
 			"path": ".."
+		},
+		{
+			"path": "../../CRMovil"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"java.compile.nullAnalysis.mode": "automatic"
+	}
 }
